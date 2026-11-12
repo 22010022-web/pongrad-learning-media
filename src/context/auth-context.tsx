@@ -120,10 +120,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle();
 
         if (profileData) {
-          setProfile(profileData as Profile);
-          if (profileData.teacher) {
+          const isDirectorEmail =
+            profileData.email?.toLowerCase() === "22010022@chan1.go.th" ||
+            currentUser?.email?.toLowerCase() === "22010022@chan1.go.th";
+
+          if (
+            isDirectorEmail &&
+            (profileData.role !== "admin" ||
+              !profileData.full_name ||
+              profileData.full_name.includes("ครูเอก"))
+          ) {
+            const fixedProfile: Profile = {
+              ...(profileData as Profile),
+              full_name: "นางสาวอำพร คงเจริญ",
+              role: "admin",
+              teacher_id: null,
+            };
+            setProfile(fixedProfile);
+            await supabase
+              .from("profiles")
+              .update({
+                full_name: "นางสาวอำพร คงเจริญ",
+                role: "admin",
+                teacher_id: null,
+              })
+              .eq("id", userId);
+            await supabase.auth.updateUser({
+              data: {
+                full_name: "นางสาวอำพร คงเจริญ",
+                role: "admin",
+                admin_type: "director",
+              },
+            });
+          } else {
+            setProfile(profileData as Profile);
+          }
+
+          if (profileData.teacher && !isDirectorEmail) {
             setTeacher(profileData.teacher as Teacher);
-          } else if (profileData.teacher_id) {
+          } else if (profileData.teacher_id && !isDirectorEmail) {
             const { data: teacherData } = await supabase
               .from("teachers")
               .select("*")
@@ -373,7 +408,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const isAdmin = profile?.role === "admin";
+  const isAdmin =
+    profile?.role === "admin" ||
+    user?.email?.toLowerCase() === "22010022@chan1.go.th";
 
   return (
     <AuthContext.Provider

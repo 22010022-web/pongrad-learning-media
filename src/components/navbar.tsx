@@ -42,11 +42,22 @@ export function Navbar() {
     return () => window.removeEventListener("school-settings-updated", handler);
   }, []);
 
+  const isDirectorAccount =
+    user?.email?.toLowerCase() === "22010022@chan1.go.th";
+
   const isKruAekAdmin =
     isAdmin &&
+    !isDirectorAccount &&
     (user?.user_metadata?.admin_type === "kru_aek" ||
-      profile?.full_name?.includes("ครูเอก") ||
-      user?.email?.toLowerCase().includes("22010022"));
+      profile?.full_name?.includes("ครูเอก"));
+
+  const displayName = isDirectorAccount
+    ? profile?.full_name && !profile.full_name.includes("ครูเอก")
+      ? profile.full_name
+      : "นางสาวอำพร คงเจริญ"
+    : isKruAekAdmin
+    ? "ครูเอก (System Admin)"
+    : teacher?.name || profile?.full_name || user?.email;
 
   const navLinks = [
     { href: "/", label: "หน้าหลัก", icon: BookOpen, role: "all" },
@@ -127,11 +138,7 @@ export function Navbar() {
                 <div className="text-right">
                   <div className="text-xs font-semibold text-white flex items-center justify-end gap-1">
                     {isAdmin && <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />}
-                    <span className="max-w-[150px] truncate">
-                      {isKruAekAdmin
-                        ? "ครูเอก (System Admin)"
-                        : teacher?.name || profile?.full_name || user.email}
-                    </span>
+                    <span className="max-w-[160px] truncate">{displayName}</span>
                   </div>
                   <div className="text-[10px] text-blue-300">
                     {isKruAekAdmin
@@ -207,15 +214,13 @@ export function Navbar() {
               <div className="flex items-center justify-between px-3 py-2 bg-navy-800 rounded-xl">
                 <div>
                   <div className="text-sm font-semibold text-white">
-                    {isKruAekAdmin
-                      ? "ครูเอก (System Admin)"
-                      : teacher?.name || profile?.full_name || user.email}
+                    {displayName}
                   </div>
                   <div className="text-xs text-blue-300">
                     {isKruAekAdmin
                       ? "ผู้ดูแลระบบหลังบ้าน (ไม่เปิดเผยตัวตน)"
                       : isAdmin
-                      ? "ผู้อำนวยการ"
+                      ? "ผู้อำนวยการ (ผู้ดูแลระบบ)"
                       : teacher?.grade_level || "ครูผู้สอน"}
                   </div>
                 </div>
