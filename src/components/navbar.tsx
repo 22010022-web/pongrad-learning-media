@@ -45,11 +45,15 @@ export function Navbar() {
   const isDirectorAccount =
     user?.email?.toLowerCase() === "22010022@chan1.go.th";
 
+  const isKruAekAccount =
+    user?.email?.toLowerCase() === "wadpongradschool@gmail.com";
+
   const isKruAekAdmin =
-    isAdmin &&
-    !isDirectorAccount &&
-    (user?.user_metadata?.admin_type === "kru_aek" ||
-      profile?.full_name?.includes("ครูเอก"));
+    (isAdmin &&
+      !isDirectorAccount &&
+      (user?.user_metadata?.admin_type === "kru_aek" ||
+        profile?.full_name?.includes("ครูเอก"))) ||
+    isKruAekAccount;
 
   const displayName = isDirectorAccount
     ? profile?.full_name && !profile.full_name.includes("ครูเอก")
