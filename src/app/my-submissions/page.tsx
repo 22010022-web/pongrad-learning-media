@@ -22,6 +22,7 @@ import {
   DEFAULT_SCHOOL_SETTINGS,
 } from "@/lib/school-settings";
 import { exportSubmissionA4Pdf } from "@/lib/pdf-report";
+import { deleteSubmissionCompletely } from "@/lib/delete-submission";
 import {
   History,
   CheckCircle2,
@@ -146,7 +147,7 @@ export default function MySubmissionsPage() {
     setActionMsg("");
     try {
       if (isConfigured) {
-        const { error } = await supabase.from("submissions").delete().eq("id", id);
+        const { error } = await deleteSubmissionCompletely(id);
         if (error) throw error;
       }
       setSubmissions((prev) => prev.filter((s) => s.id !== id));
@@ -480,6 +481,10 @@ export default function MySubmissionsPage() {
           setOpenInEditMode(false);
         }}
         onUpdated={handleUpdatedSubmission}
+        onDeleted={(id) => {
+          setSubmissions((prev) => prev.filter((s) => s.id !== id));
+          setActionMsg("ลบรายการผลงานสื่อเรียบร้อยแล้ว");
+        }}
       />
     </div>
   );

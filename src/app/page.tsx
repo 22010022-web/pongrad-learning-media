@@ -738,6 +738,7 @@ export default function DashboardPage() {
           );
           setSelectedSubmission(updated);
         }}
+        onDeleted={(id) => setSubmissions((prev) => prev.filter((s) => s.id !== id))}
       />
     </div>
   );

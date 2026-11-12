@@ -500,6 +500,7 @@ export default function GalleryPage() {
         submission={activeSubmission}
         onClose={() => setActiveSubmission(null)}
         onUpdated={handleUpdatedSubmission}
+        onDeleted={(id) => setSubmissions((prev) => prev.filter((s) => s.id !== id))}
       />
     </div>
   );

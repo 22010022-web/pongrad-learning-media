@@ -201,6 +201,35 @@ export default function SubmitPage() {
     [subjectGroup, targetGrade, mediaType]
   );
 
+  // Existing submissions of this teacher in the selected month (duplicate check)
+  const [existingInMonth, setExistingInMonth] = useState<{ id: string; title: string }[]>([]);
+  useEffect(() => {
+    if (!isConfigured || !selectedTeacherId || !submissionMonthId || !academicYearId) {
+      setExistingInMonth([]);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("submissions")
+      .select("id, title")
+      .eq("teacher_id", selectedTeacherId)
+      .eq("submission_month_id", submissionMonthId)
+      .eq("academic_year_id", academicYearId)
+      .then(({ data }) => {
+        if (!cancelled) setExistingInMonth((data as { id: string; title: string }[]) || []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isConfigured, selectedTeacherId, submissionMonthId, academicYearId]);
+
+  const normalizeTitle = (t: string) => t.trim().replace(/\s+/g, " ").toLowerCase();
+  const duplicateTitle = existingInMonth.find(
+    (s) => title.trim() && normalizeTitle(s.title) === normalizeTitle(title)
+  );
+  const selectedMonthName =
+    availableMonths.find((m) => m.id === submissionMonthId)?.month_name || "";
+
   // AI Handler: Fill all 3 fields (and title if empty)
   const handleAiFillAll = () => {
     const res = generateAiMediaContent({
@@ -310,6 +339,12 @@ export default function SubmitPage() {
     }
     if (!title.trim()) {
       setErrorMsg("กรุณากรอกชื่อสื่อการจัดการเรียนรู้");
+      return;
+    }
+    if (duplicateTitle) {
+      setErrorMsg(
+        `ท่านเคยส่งสื่อชื่อ "${duplicateTitle.title}" ในเดือน${selectedMonthName}แล้ว — หากต้องการปรับปรุง กรุณาไปที่เมนู "ประวัติการส่งสื่อ" แล้วกด "แก้ไขสื่อ/รูปภาพ" แทนการส่งซ้ำ`
+      );
       return;
     }
     if (selectedImages.length === 0) {
@@ -502,6 +537,39 @@ export default function SubmitPage() {
             <div className="font-semibold">{successMsg}</div>
             <div className="text-xs text-emerald-700 mt-0.5">
               ระบบกำลังนำท่านไปยังคลังผลงานสื่อ...
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate / already-submitted warning */}
+      {existingInMonth.length > 0 && !successMsg && (
+        <div
+          className={`p-4 rounded-xl text-sm flex items-start gap-3 border ${
+            duplicateTitle
+              ? "bg-red-50 border-red-200 text-red-800"
+              : "bg-amber-50 border-amber-200 text-amber-900"
+          }`}
+        >
+          <AlertCircle
+            className={`w-5 h-5 shrink-0 mt-0.5 ${duplicateTitle ? "text-red-500" : "text-amber-500"}`}
+          />
+          <div className="space-y-1">
+            <div className="font-semibold">
+              {duplicateTitle
+                ? `ชื่อสื่อนี้ซ้ำกับที่ส่งไว้แล้วในเดือน${selectedMonthName} — ระบบจะไม่อนุญาตให้ส่งซ้ำ`
+                : `เดือน${selectedMonthName} ท่านส่งสื่อไปแล้ว ${existingInMonth.length} ชิ้น (ส่งครบเกณฑ์แล้ว)`}
+            </div>
+            <ul className="text-xs list-disc pl-4">
+              {existingInMonth.map((s) => (
+                <li key={s.id}>{s.title}</li>
+              ))}
+            </ul>
+            <div className="text-xs">
+              หากต้องการส่งเพิ่มเป็นชิ้นใหม่ สามารถส่งต่อได้ตามปกติ หรือหากต้องการแก้ไข/ลบชิ้นเดิม ไปที่{" "}
+              <Link href="/my-submissions" className="font-bold underline">
+                ประวัติการส่งสื่อ
+              </Link>
             </div>
           </div>
         </div>
