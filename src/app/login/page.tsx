@@ -16,8 +16,6 @@ import {
   Lock,
   Mail,
   User as UserIcon,
-  ShieldCheck,
-  Code2,
   ArrowRight,
   AlertCircle,
   CheckCircle2,
@@ -27,8 +25,6 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-type AccountType = "teacher" | "director" | "kru_aek";
-
 export default function LoginPage() {
   const router = useRouter();
   const { user, signIn, signUp, isConfigured, isSchemaReady } = useAuth();
@@ -37,7 +33,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [accountType, setAccountType] = useState<AccountType>("teacher");
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
   const [settings, setSettings] = useState<SchoolSettings>(DEFAULT_SCHOOL_SETTINGS);
 
@@ -109,23 +104,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleAccountTypeSelect = (type: AccountType) => {
-    setAccountType(type);
-    if (type === "kru_aek") {
-      setFullName("ครูเอก (ผู้ดูแลระบบ)");
-      setSelectedTeacherId("");
-    } else if (type === "director") {
-      if (fullName === "ครูเอก (ผู้ดูแลระบบ)" || teachersList.some((t) => t.name === fullName)) {
-        setFullName("");
-      }
-      setSelectedTeacherId("");
-    } else {
-      if (fullName === "ครูเอก (ผู้ดูแลระบบ)") {
-        setFullName("");
-      }
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
@@ -142,45 +120,34 @@ export default function LoginPage() {
           setTimeout(() => router.push("/"), 600);
         }
       } else {
-        // Sign up
-        const effectiveName =
-          accountType === "kru_aek" && !fullName.trim()
-            ? "ครูเอก (ผู้ดูแลระบบ)"
-            : fullName.trim();
+        // Sign up (Teacher only)
+        const effectiveName = fullName.trim();
 
         if (!effectiveName) {
           setErrorMsg("กรุณากรอกชื่อ-นามสกุล");
           setLoading(false);
           return;
         }
-        if (accountType === "teacher" && !selectedTeacherId) {
+        if (!selectedTeacherId) {
           setErrorMsg("กรุณาเลือกชื่อครูในระบบที่ตรงกับตัวท่าน");
           setLoading(false);
           return;
         }
 
-        const role = accountType === "teacher" ? "teacher" : "admin";
         const matchedTeacher = teachersList.find((t) => t.id === selectedTeacherId);
-        const teacherId = accountType === "teacher" ? selectedTeacherId : undefined;
-        const teacherName = accountType === "teacher" ? matchedTeacher?.name : undefined;
 
         const { error } = await signUp(
           email,
           password,
           effectiveName,
-          role,
-          teacherId,
-          teacherName
+          "teacher",
+          selectedTeacherId,
+          matchedTeacher?.name
         );
 
         if (error) {
           setErrorMsg(error.message || "เกิดข้อผิดพลาดในการลงทะเบียน");
         } else {
-          if (accountType === "kru_aek" && isConfigured) {
-            await supabase.auth.updateUser({
-              data: { admin_type: "kru_aek", full_name: effectiveName, role: "admin" },
-            });
-          }
           setSuccessMsg("ลงทะเบียนและเข้าสู่ระบบสำเร็จเรียบร้อยแล้ว!");
           setTimeout(() => router.push("/"), 800);
         }
@@ -290,101 +257,59 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && (
               <>
-                {/* Account Type select */}
+                {/* Account Type: Teacher only */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    ประเภทผู้ใช้งาน <span className="text-red-500">*</span>
+                    ประเภทผู้ใช้งาน
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleAccountTypeSelect("teacher")}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                        accountType === "teacher"
-                          ? "bg-blue-50 border-blue-500 text-blue-700 shadow-sm"
-                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      <GraduationCap className="w-4 h-4" />
-                      <span>ครูผู้สอน</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAccountTypeSelect("director")}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                        accountType === "director"
-                          ? "bg-navy-900 border-navy-900 text-white shadow-sm"
-                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      <ShieldCheck className="w-4 h-4 text-amber-400" />
-                      <span>ผู้อำนวยการ</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAccountTypeSelect("kru_aek")}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                        accountType === "kru_aek"
-                          ? "bg-slate-900 border-cyan-500 text-cyan-300 shadow-sm"
-                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      <Code2 className="w-4 h-4 text-cyan-400" />
-                      <span>ผู้ดูแลระบบ (ครูเอก)</span>
-                    </button>
+                  <div className="p-3 rounded-xl border border-blue-500 bg-blue-50 text-blue-700 text-xs font-semibold flex items-center justify-center gap-2 shadow-sm">
+                    <GraduationCap className="w-4 h-4" />
+                    <span>ครูผู้สอน</span>
                   </div>
                 </div>
 
-                {accountType === "kru_aek" && (
-                  <div className="p-3 rounded-xl bg-slate-900 text-cyan-200 text-xs border border-cyan-500/30">
-                    <strong>โหมดผู้ดูแลระบบหลังบ้าน (ไม่เปิดเผยตัวตน):</strong> บัญชีครูเอกจะมีสิทธิ์จัดการระบบทั้งหมด เปลี่ยนโลโก้โรงเรียน เพิ่มปีการศึกษา และแก้ไขข้อมูลได้โดยไม่ปรากฏชื่อในตารางส่งสื่อของครู 9 ท่าน
-                  </div>
-                )}
-
                 {/* Link to Teacher in database */}
-                {accountType === "teacher" && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      เลือกชื่อครูในระบบ <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      required
-                      value={selectedTeacherId}
-                      onChange={(e) => {
-                        const newId = e.target.value;
-                        setSelectedTeacherId(newId);
-                        const matched = teachersList.find((t) => t.id === newId);
-                        const isPreviousTeacherName = teachersList.some(
-                          (t) => t.name === fullName.trim()
-                        );
-                        if (matched && (!fullName.trim() || isPreviousTeacherName)) {
-                          setFullName(matched.name);
-                        }
-                      }}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                    >
-                      <option value="">-- กรุณาเลือกชื่อครู --</option>
-                      <optgroup label="กลุ่มที่ 1 ครูระดับปฐมวัย">
-                        {teachersList
-                          .filter((t) => t.category === "early_childhood")
-                          .map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name} ({t.grade_level})
-                            </option>
-                          ))}
-                      </optgroup>
-                      <optgroup label="กลุ่มที่ 2 ครูระดับประถมศึกษา">
-                        {teachersList
-                          .filter((t) => t.category === "primary")
-                          .map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name} ({t.grade_level}) - {t.subjects}
-                            </option>
-                          ))}
-                      </optgroup>
-                    </select>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    เลือกชื่อครูในระบบ <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={selectedTeacherId}
+                    onChange={(e) => {
+                      const newId = e.target.value;
+                      setSelectedTeacherId(newId);
+                      const matched = teachersList.find((t) => t.id === newId);
+                      const isPreviousTeacherName = teachersList.some(
+                        (t) => t.name === fullName.trim()
+                      );
+                      if (matched && (!fullName.trim() || isPreviousTeacherName)) {
+                        setFullName(matched.name);
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                  >
+                    <option value="">-- กรุณาเลือกชื่อครู --</option>
+                    <optgroup label="กลุ่มที่ 1 ครูระดับปฐมวัย">
+                      {teachersList
+                        .filter((t) => t.category === "early_childhood")
+                        .map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.grade_level})
+                          </option>
+                        ))}
+                    </optgroup>
+                    <optgroup label="กลุ่มที่ 2 ครูระดับประถมศึกษา">
+                      {teachersList
+                        .filter((t) => t.category === "primary")
+                        .map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.grade_level}) - {t.subjects}
+                          </option>
+                        ))}
+                    </optgroup>
+                  </select>
+                </div>
 
                 {/* Full name */}
                 <div>
@@ -398,13 +323,7 @@ export default function LoginPage() {
                       required
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      placeholder={
-                        accountType === "kru_aek"
-                          ? "ครูเอก (ผู้ดูแลระบบ)"
-                          : accountType === "director"
-                          ? "ชื่อ-นามสกุล ผู้อำนวยการ"
-                          : "เช่น ครูณิชนันทน์ การบุญ"
-                      }
+                      placeholder="เช่น ครูณิชนันทน์ การบุญ"
                       className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
                     />
                   </div>

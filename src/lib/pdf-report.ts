@@ -1,5 +1,5 @@
 import { Submission } from "@/types/database";
-import { SchoolSettings, fetchSchoolSettings } from "@/lib/school-settings";
+import { SchoolSettings, fetchSchoolSettings, DEFAULT_SCHOOL_SETTINGS } from "@/lib/school-settings";
 import { formatDateThai } from "@/lib/utils";
 
 function escapeHtml(str?: string | null): string {
@@ -37,25 +37,25 @@ export async function exportSubmissionA4Pdf(
   const imgCount = images.length;
   // Dynamically adjust grid columns & image height so 1 to 10 images always fit on 1 A4 Portrait page
   let gridCols = 2;
-  let imgHeightPx = 145;
+  let imgHeightPx = 140;
   if (imgCount === 1) {
     gridCols = 1;
-    imgHeightPx = 190;
+    imgHeightPx = 180;
   } else if (imgCount === 2) {
     gridCols = 2;
-    imgHeightPx = 165;
+    imgHeightPx = 155;
   } else if (imgCount <= 4) {
     gridCols = 2;
-    imgHeightPx = 115;
+    imgHeightPx = 110;
   } else if (imgCount <= 6) {
     gridCols = 3;
-    imgHeightPx = 105;
+    imgHeightPx = 100;
   } else if (imgCount <= 8) {
     gridCols = 4;
-    imgHeightPx = 95;
+    imgHeightPx = 92;
   } else {
     gridCols = 5;
-    imgHeightPx = 88;
+    imgHeightPx = 84;
   }
 
   const teacherName = submission.teacher?.name || "ครูผู้สอน";
@@ -71,9 +71,11 @@ export async function exportSubmissionA4Pdf(
     ? `<img src="${settings.logoUrl}" alt="School Logo" style="width: 58px; height: 58px; object-fit: contain; border-radius: 8px;" crossorigin="anonymous" />`
     : `<div style="width: 54px; height: 54px; border-radius: 12px; background: #102a43; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px;">ปร</div>`;
 
-  const directorLine = settings.directorName
-    ? `(${escapeHtml(settings.directorName)})`
-    : "(........................................................)";
+  const directorName =
+    settings.directorName?.trim() || DEFAULT_SCHOOL_SETTINGS.directorName;
+  const directorPosition =
+    settings.directorPosition?.trim() ||
+    "ผู้อำนวยการโรงเรียนวัดโป่งแรด(ปคุณวิทยาคาร)";
 
   const printWindow = window.open("", "_blank", "width=900,height=1100");
   if (!printWindow) {
@@ -165,7 +167,7 @@ export async function exportSubmissionA4Pdf(
       }
       .a4-page {
         width: 100%;
-        min-height: auto;
+        min-height: 274mm;
         margin: 0;
         padding: 0;
         box-shadow: none;
@@ -259,24 +261,57 @@ export async function exportSubmissionA4Pdf(
     .signatures {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-top: 8px;
-      padding-top: 8px;
-      text-align: center;
+      gap: 16px;
+      margin-top: 10px;
+      padding-top: 6px;
       font-size: 12px;
     }
-    .sig-block p {
-      margin-bottom: 4px;
+    .sig-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
     .sig-space {
-      height: 32px;
+      height: 28px;
+    }
+    /* Grid inside each signature block so (Name) and Position are centered directly under the dotted line */
+    .sig-grid {
+      display: inline-grid;
+      grid-template-columns: auto 175px auto;
+      column-gap: 4px;
+      row-gap: 4px;
+      align-items: baseline;
+    }
+    .sig-prefix {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .sig-dots {
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      letter-spacing: 0.5px;
+    }
+    .sig-suffix {
+      text-align: left;
+      white-space: nowrap;
+    }
+    .sig-center-cell {
+      grid-column: 2;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .sig-pos {
+      color: #334155;
+      font-size: 11.5px;
     }
     .footer-note {
-      margin-top: 6px;
+      margin-top: 28px;
       border-top: 1px dashed #cbd5e1;
-      padding-top: 4px;
+      padding-top: 10px;
       display: flex;
       justify-content: space-between;
+      align-items: center;
       font-size: 10px;
       color: #64748b;
     }
@@ -364,20 +399,28 @@ export async function exportSubmissionA4Pdf(
       <div class="signatures">
         <div class="sig-block">
           <div class="sig-space"></div>
-          <p>ลงชื่อ........................................................ ผู้จัดทำ/ผู้รายงาน</p>
-          <p>(${escapeHtml(teacherName)})</p>
-          <p style="color: #475569;">ตำแหน่ง ครู ${escapeHtml(submission.teacher?.grade_level || "")}</p>
+          <div class="sig-grid">
+            <span class="sig-prefix">ลงชื่อ</span>
+            <span class="sig-dots">..................................................</span>
+            <span class="sig-suffix">ผู้จัดทำ/ผู้รายงาน</span>
+            <div class="sig-center-cell">(${escapeHtml(teacherName)})</div>
+            <div class="sig-center-cell sig-pos">ตำแหน่ง ครู ${escapeHtml(submission.teacher?.grade_level || "")}</div>
+          </div>
         </div>
         <div class="sig-block">
           <div class="sig-space"></div>
-          <p>ลงชื่อ........................................................ ผู้รับรองข้อมูล</p>
-          <p>${directorLine}</p>
-          <p style="color: #475569;">ผู้อำนวยการ${escapeHtml(settings.schoolName)}</p>
+          <div class="sig-grid">
+            <span class="sig-prefix">ลงชื่อ</span>
+            <span class="sig-dots">..................................................</span>
+            <span class="sig-suffix">ผู้รับรองข้อมูล</span>
+            <div class="sig-center-cell">(${escapeHtml(directorName)})</div>
+            <div class="sig-center-cell sig-pos">${escapeHtml(directorPosition)}</div>
+          </div>
         </div>
       </div>
 
       <div class="footer-note">
-        <span>ระบบส่งสื่อการจัดการเรียนรู้ ${escapeHtml(settings.schoolName)}</span>
+        <span>ระบบส่งสื่อการจัดการเรียนรู้ โรงเรียนวัดโป่งแรด (ปคุณวิทยาคาร)</span>
         <span>พัฒนาโดย ครูเอก · © 2026 Crafted with code & coffee by Kru Aek</span>
       </div>
     </div>

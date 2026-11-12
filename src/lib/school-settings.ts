@@ -20,8 +20,8 @@ export const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
   schoolName: "โรงเรียนวัดโป่งแรด (ปคุณวิทยาคาร)",
   schoolArea: "สพป.จันทบุรี เขต 1",
   affiliation: "สำนักงานเขตพื้นที่การศึกษาประถมศึกษาจันทบุรี เขต 1",
-  directorName: "",
-  directorPosition: "ผู้อำนวยการโรงเรียนวัดโป่งแรด (ปคุณวิทยาคาร)",
+  directorName: "นางสาวอำพร คงเจริญ",
+  directorPosition: "ผู้อำนวยการโรงเรียนวัดโป่งแรด(ปคุณวิทยาคาร)",
   defaultSemesterByYear: {
     "2569": "semester_2",
   },
@@ -71,7 +71,14 @@ export async function fetchSchoolSettings(): Promise<SchoolSettings> {
     try {
       const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (raw) {
-        cached = { ...DEFAULT_SCHOOL_SETTINGS, ...JSON.parse(raw) };
+        const parsed = JSON.parse(raw);
+        cached = {
+          ...DEFAULT_SCHOOL_SETTINGS,
+          ...parsed,
+          directorName: parsed.directorName?.trim() || DEFAULT_SCHOOL_SETTINGS.directorName,
+          directorPosition:
+            parsed.directorPosition?.trim() || DEFAULT_SCHOOL_SETTINGS.directorPosition,
+        };
       }
     } catch {
       // ignore
@@ -96,6 +103,10 @@ export async function fetchSchoolSettings(): Promise<SchoolSettings> {
         const merged: SchoolSettings = {
           ...DEFAULT_SCHOOL_SETTINGS,
           ...remoteJson,
+          directorName:
+            remoteJson.directorName?.trim() || DEFAULT_SCHOOL_SETTINGS.directorName,
+          directorPosition:
+            remoteJson.directorPosition?.trim() || DEFAULT_SCHOOL_SETTINGS.directorPosition,
           defaultSemesterByYear: {
             ...DEFAULT_SCHOOL_SETTINGS.defaultSemesterByYear,
             ...(remoteJson.defaultSemesterByYear || {}),
@@ -117,6 +128,9 @@ export async function fetchSchoolSettings(): Promise<SchoolSettings> {
 export async function saveSchoolSettings(settings: SchoolSettings): Promise<{ error: Error | null }> {
   const updated: SchoolSettings = {
     ...settings,
+    directorName: settings.directorName?.trim() || DEFAULT_SCHOOL_SETTINGS.directorName,
+    directorPosition:
+      settings.directorPosition?.trim() || DEFAULT_SCHOOL_SETTINGS.directorPosition,
     updatedAt: new Date().toISOString(),
   };
 

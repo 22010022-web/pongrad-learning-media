@@ -344,22 +344,30 @@ export default function ReportsPage() {
         </div>
 
         {/* Signature Line for Director (for Official Print) */}
-        <div className="pt-12 grid grid-cols-2 text-center text-xs text-slate-700">
-          <div>
-            <p className="mb-10">ลงชื่อ........................................................ ผู้รายงาน</p>
-            <p>(........................................................)</p>
-            <p className="text-[11px] text-slate-500">ครูผู้รับผิดชอบงานสื่อการเรียนการสอน</p>
+        <div className="pt-12 grid grid-cols-1 sm:grid-cols-2 gap-8 text-xs text-slate-700">
+          <div className="flex flex-col items-center">
+            <div className="inline-grid grid-cols-[auto_180px_auto] gap-x-1.5 gap-y-1.5 items-baseline">
+              <span className="text-right">ลงชื่อ</span>
+              <span className="text-center tracking-wider overflow-hidden">..................................................</span>
+              <span className="text-left">ผู้รายงาน</span>
+              <div className="col-start-2 text-center">(..................................................)</div>
+              <div className="col-start-2 text-center text-[11px] text-slate-500 whitespace-nowrap">
+                ครูผู้รับผิดชอบงานสื่อการเรียนการสอน
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="mb-10">ลงชื่อ........................................................ ผู้รับรอง</p>
-            <p>
-              (
-              {schoolSettings.directorName
-                ? ` ${schoolSettings.directorName} `
-                : "........................................................"}
-              )
-            </p>
-            <p className="text-[11px] text-slate-500">{schoolSettings.directorPosition}</p>
+          <div className="flex flex-col items-center">
+            <div className="inline-grid grid-cols-[auto_180px_auto] gap-x-1.5 gap-y-1.5 items-baseline">
+              <span className="text-right">ลงชื่อ</span>
+              <span className="text-center tracking-wider overflow-hidden">..................................................</span>
+              <span className="text-left">ผู้รับรอง</span>
+              <div className="col-start-2 text-center font-medium whitespace-nowrap">
+                ({schoolSettings.directorName || "นางสาวอำพร คงเจริญ"})
+              </div>
+              <div className="col-start-2 text-center text-[11px] text-slate-500 whitespace-nowrap">
+                {schoolSettings.directorPosition || "ผู้อำนวยการโรงเรียนวัดโป่งแรด(ปคุณวิทยาคาร)"}
+              </div>
+            </div>
           </div>
         </div>
       </div>
