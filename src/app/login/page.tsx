@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { supabase, getSupabaseProjectRef } from "@/lib/supabase/client";
 import { SUPABASE_SCHEMA_SQL } from "@/lib/supabase/schema-sql";
+import {
+  fetchSchoolSettings,
+  DEFAULT_SCHOOL_SETTINGS,
+  SchoolSettings,
+} from "@/lib/school-settings";
 import { Teacher, TEACHERS_PRESET } from "@/types/database";
 import {
   GraduationCap,
@@ -12,6 +17,7 @@ import {
   Mail,
   User as UserIcon,
   ShieldCheck,
+  Code2,
   ArrowRight,
   AlertCircle,
   CheckCircle2,
@@ -21,6 +27,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 
+type AccountType = "teacher" | "director" | "kru_aek";
+
 export default function LoginPage() {
   const router = useRouter();
   const { user, signIn, signUp, isConfigured, isSchemaReady } = useAuth();
@@ -29,8 +37,9 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<"teacher" | "admin">("teacher");
+  const [accountType, setAccountType] = useState<AccountType>("teacher");
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
+  const [settings, setSettings] = useState<SchoolSettings>(DEFAULT_SCHOOL_SETTINGS);
 
   const [teachersList, setTeachersList] = useState<Teacher[]>(
     TEACHERS_PRESET.map((t) => ({
@@ -47,6 +56,10 @@ export default function LoginPage() {
   const sqlEditorUrl = projectRef
     ? `https://supabase.com/dashboard/project/${projectRef}/sql/new`
     : "https://supabase.com/dashboard";
+
+  useEffect(() => {
+    fetchSchoolSettings().then(setSettings);
+  }, []);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -69,7 +82,6 @@ export default function LoginPage() {
           return;
         }
       }
-      // Fallback preset with valid deterministic UUIDs
       setTeachersList(
         TEACHERS_PRESET.map((t) => ({
           ...t,
@@ -97,6 +109,23 @@ export default function LoginPage() {
     }
   };
 
+  const handleAccountTypeSelect = (type: AccountType) => {
+    setAccountType(type);
+    if (type === "kru_aek") {
+      setFullName("ครูเอก (ผู้ดูแลระบบ)");
+      setSelectedTeacherId("");
+    } else if (type === "director") {
+      if (fullName === "ครูเอก (ผู้ดูแลระบบ)" || teachersList.some((t) => t.name === fullName)) {
+        setFullName("");
+      }
+      setSelectedTeacherId("");
+    } else {
+      if (fullName === "ครูเอก (ผู้ดูแลระบบ)") {
+        setFullName("");
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
@@ -114,25 +143,31 @@ export default function LoginPage() {
         }
       } else {
         // Sign up
-        if (!fullName.trim()) {
+        const effectiveName =
+          accountType === "kru_aek" && !fullName.trim()
+            ? "ครูเอก (ผู้ดูแลระบบ)"
+            : fullName.trim();
+
+        if (!effectiveName) {
           setErrorMsg("กรุณากรอกชื่อ-นามสกุล");
           setLoading(false);
           return;
         }
-        if (role === "teacher" && !selectedTeacherId) {
+        if (accountType === "teacher" && !selectedTeacherId) {
           setErrorMsg("กรุณาเลือกชื่อครูในระบบที่ตรงกับตัวท่าน");
           setLoading(false);
           return;
         }
 
+        const role = accountType === "teacher" ? "teacher" : "admin";
         const matchedTeacher = teachersList.find((t) => t.id === selectedTeacherId);
-        const teacherId = role === "teacher" ? selectedTeacherId : undefined;
-        const teacherName = role === "teacher" ? matchedTeacher?.name : undefined;
+        const teacherId = accountType === "teacher" ? selectedTeacherId : undefined;
+        const teacherName = accountType === "teacher" ? matchedTeacher?.name : undefined;
 
         const { error } = await signUp(
           email,
           password,
-          fullName,
+          effectiveName,
           role,
           teacherId,
           teacherName
@@ -141,6 +176,11 @@ export default function LoginPage() {
         if (error) {
           setErrorMsg(error.message || "เกิดข้อผิดพลาดในการลงทะเบียน");
         } else {
+          if (accountType === "kru_aek" && isConfigured) {
+            await supabase.auth.updateUser({
+              data: { admin_type: "kru_aek", full_name: effectiveName, role: "admin" },
+            });
+          }
           setSuccessMsg("ลงทะเบียนและเข้าสู่ระบบสำเร็จเรียบร้อยแล้ว!");
           setTimeout(() => router.push("/"), 800);
         }
@@ -157,15 +197,23 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-6">
         {/* Header */}
         <div className="text-center">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-tr from-navy-900 to-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/20 mb-4 border border-blue-400/30">
-            <GraduationCap className="w-9 h-9" />
-          </div>
+          {settings.logoUrl ? (
+            <div className="mx-auto w-20 h-20 rounded-2xl bg-white p-2 flex items-center justify-center shadow-xl border border-slate-200 mb-4 overflow-hidden">
+              <img
+                src={settings.logoUrl}
+                alt="School Logo"
+                className="w-full h-full object-contain"
+              />
+            </div>
+          ) : (
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-tr from-navy-900 to-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/20 mb-4 border border-blue-400/30">
+              <GraduationCap className="w-9 h-9" />
+            </div>
+          )}
           <h2 className="text-2xl font-bold text-navy-950 tracking-tight">
             ระบบส่งสื่อการจัดการเรียนรู้
           </h2>
-          <p className="text-sm text-slate-600 mt-1">
-            โรงเรียนวัดโป่งแรด (ปคุณวิทยาคาร)
-          </p>
+          <p className="text-sm text-slate-600 mt-1">{settings.schoolName}</p>
         </div>
 
         {/* Tab Toggle */}
@@ -242,17 +290,17 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && (
               <>
-                {/* Role select */}
+                {/* Account Type select */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     ประเภทผู้ใช้งาน <span className="text-red-500">*</span>
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
-                      onClick={() => setRole("teacher")}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        role === "teacher"
+                      onClick={() => handleAccountTypeSelect("teacher")}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                        accountType === "teacher"
                           ? "bg-blue-50 border-blue-500 text-blue-700 shadow-sm"
                           : "border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
@@ -262,21 +310,39 @@ export default function LoginPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setRole("admin")}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        role === "admin"
+                      onClick={() => handleAccountTypeSelect("director")}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                        accountType === "director"
                           ? "bg-navy-900 border-navy-900 text-white shadow-sm"
                           : "border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                     >
                       <ShieldCheck className="w-4 h-4 text-amber-400" />
-                      <span>ผู้ดูแลระบบ (ผอ.)</span>
+                      <span>ผู้อำนวยการ</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAccountTypeSelect("kru_aek")}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                        accountType === "kru_aek"
+                          ? "bg-slate-900 border-cyan-500 text-cyan-300 shadow-sm"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <Code2 className="w-4 h-4 text-cyan-400" />
+                      <span>ผู้ดูแลระบบ (ครูเอก)</span>
                     </button>
                   </div>
                 </div>
 
+                {accountType === "kru_aek" && (
+                  <div className="p-3 rounded-xl bg-slate-900 text-cyan-200 text-xs border border-cyan-500/30">
+                    <strong>โหมดผู้ดูแลระบบหลังบ้าน (ไม่เปิดเผยตัวตน):</strong> บัญชีครูเอกจะมีสิทธิ์จัดการระบบทั้งหมด เปลี่ยนโลโก้โรงเรียน เพิ่มปีการศึกษา และแก้ไขข้อมูลได้โดยไม่ปรากฏชื่อในตารางส่งสื่อของครู 9 ท่าน
+                  </div>
+                )}
+
                 {/* Link to Teacher in database */}
-                {role === "teacher" && (
+                {accountType === "teacher" && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       เลือกชื่อครูในระบบ <span className="text-red-500">*</span>
@@ -323,7 +389,7 @@ export default function LoginPage() {
                 {/* Full name */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    ชื่อ - นามสกุล <span className="text-red-500">*</span>
+                    ชื่อผู้ใช้งาน / ชื่อ-นามสกุล <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <UserIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -332,7 +398,13 @@ export default function LoginPage() {
                       required
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      placeholder={role === "admin" ? "ชื่อ-นามสกุล ผู้อำนวยการ" : "เช่น ครูณิชนันทน์ การบุญ"}
+                      placeholder={
+                        accountType === "kru_aek"
+                          ? "ครูเอก (ผู้ดูแลระบบ)"
+                          : accountType === "director"
+                          ? "ชื่อ-นามสกุล ผู้อำนวยการ"
+                          : "เช่น ครูณิชนันทน์ การบุญ"
+                      }
                       className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
                     />
                   </div>
@@ -399,7 +471,7 @@ export default function LoginPage() {
           <div className="mt-6 pt-5 border-t border-slate-100 flex items-start gap-2 text-xs text-slate-500">
             <HelpCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
             <div>
-              สำหรับครูผู้สอน: เลือกชื่อของท่านจากรายการ ระบบจะผูกบัญชีเข้ากับตารางติดตามการส่งสื่อ 10 เดือนให้อัตโนมัติทันที
+              สำหรับครูผู้สอน: เลือกชื่อของท่านจากรายการ ระบบจะผูกบัญชีเข้ากับตารางติดตามการส่งสื่อ ภาคเรียนที่ 2/2569 ให้อัตโนมัติทันที
             </div>
           </div>
         </div>

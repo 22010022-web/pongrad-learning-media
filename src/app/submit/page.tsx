@@ -1,10 +1,19 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { supabase } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/image-compressor";
+import {
+  fetchSchoolSettings,
+  DEFAULT_SCHOOL_SETTINGS,
+  SchoolSettings,
+} from "@/lib/school-settings";
+import {
+  generateAiMediaContent,
+  getSuggestedTitles,
+} from "@/lib/ai-media-helper";
 import {
   Teacher,
   AcademicYear,
@@ -21,15 +30,15 @@ import {
   Trash2,
   AlertCircle,
   CheckCircle2,
-  Calendar,
   GraduationCap,
   BookOpen,
-  Tag,
   Target,
   FileText,
   Award,
   Sparkles,
   ArrowLeft,
+  Wand2,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -44,6 +53,8 @@ export default function SubmitPage() {
   const router = useRouter();
   const { user, profile, teacher, isConfigured } = useAuth();
 
+  const [settings, setSettings] = useState<SchoolSettings>(DEFAULT_SCHOOL_SETTINGS);
+
   // Form State
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>("");
   const [academicYearId, setAcademicYearId] = useState<string>("");
@@ -56,6 +67,10 @@ export default function SubmitPage() {
   const [objective, setObjective] = useState<string>("");
   const [usageDescription, setUsageDescription] = useState<string>("");
   const [studentOutcome, setStudentOutcome] = useState<string>("");
+
+  // AI State
+  const [aiVariant, setAiVariant] = useState<number>(0);
+  const [aiNotice, setAiNotice] = useState<string>("");
 
   // Images state (max 10)
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
@@ -71,8 +86,10 @@ export default function SubmitPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  // Load dropdown lists
+  // Load dropdown lists & settings
   useEffect(() => {
+    fetchSchoolSettings().then(setSettings);
+
     async function loadInitialData() {
       const presetTeachers = TEACHERS_PRESET.map((t) => ({
         ...t,
@@ -86,7 +103,6 @@ export default function SubmitPage() {
         ...m,
         created_at: new Date().toISOString(),
       }));
-      const curMonthNo = new Date().getMonth() + 1;
 
       if (isConfigured) {
         // Fetch teachers
@@ -107,27 +123,60 @@ export default function SubmitPage() {
         const currentY = finalYears.find((y) => y.is_current) || finalYears[0];
         setAcademicYearId(currentY.id);
 
-        // Fetch submission months (10 months)
+        // Fetch submission months
         const { data: mData } = await supabase
           .from("submission_months")
           .select("*")
           .order("display_order", { ascending: true });
         const finalMonths = mData && mData.length > 0 ? (mData as SubmissionMonth[]) : presetMonths;
         setMonths(finalMonths);
-        const defaultMonth = finalMonths.find((m) => m.month_no === curMonthNo) || finalMonths[0];
-        setSubmissionMonthId(defaultMonth.id);
       } else {
         setTeachersList(presetTeachers);
         setAcademicYears(presetYears);
         setAcademicYearId(presetYears[0].id);
         setMonths(presetMonths);
-        const defaultMonth = presetMonths.find((m) => m.month_no === curMonthNo) || presetMonths[0];
-        setSubmissionMonthId(defaultMonth.id);
       }
     }
 
     loadInitialData();
   }, [isConfigured]);
+
+  // Filter active months based on selected year's semester configuration
+  // For 2569, default is semester_2 (Nov, Dec, Jan, Feb, Mar only - Semester 1 is hidden!)
+  const selectedYearObj = useMemo(
+    () => academicYears.find((y) => y.id === academicYearId) || academicYears[0],
+    [academicYears, academicYearId]
+  );
+
+  const activeSemesterMode = useMemo(() => {
+    const yearBe = selectedYearObj?.year_be || "2569";
+    return (
+      settings.defaultSemesterByYear[yearBe] ||
+      (yearBe === "2569" ? "semester_2" : "all")
+    );
+  }, [selectedYearObj, settings]);
+
+  const availableMonths = useMemo(() => {
+    if (activeSemesterMode === "semester_2") {
+      return months.filter((m) => m.semester === 2);
+    }
+    if (activeSemesterMode === "semester_1") {
+      return months.filter((m) => m.semester === 1);
+    }
+    return months;
+  }, [months, activeSemesterMode]);
+
+  // Ensure selected submissionMonthId is valid within availableMonths
+  useEffect(() => {
+    if (availableMonths.length === 0) return;
+    const exists = availableMonths.some((m) => m.id === submissionMonthId);
+    if (!exists) {
+      const curMonthNo = new Date().getMonth() + 1;
+      const defaultM =
+        availableMonths.find((m) => m.month_no === curMonthNo) || availableMonths[0];
+      setSubmissionMonthId(defaultM.id);
+    }
+  }, [availableMonths, submissionMonthId]);
 
   // Set default teacher from user profile if available
   useEffect(() => {
@@ -144,6 +193,49 @@ export default function SubmitPage() {
     }
   }, [teacher, profile, targetGrade, subjectGroup]);
 
+  // Suggested titles based on subject & grade
+  const suggestedTitles = useMemo(
+    () => getSuggestedTitles(subjectGroup, targetGrade, mediaType),
+    [subjectGroup, targetGrade, mediaType]
+  );
+
+  // AI Handler: Fill all 3 fields (and title if empty)
+  const handleAiFillAll = () => {
+    const res = generateAiMediaContent({
+      title,
+      targetGrade,
+      subjectGroup,
+      mediaType,
+      mediaTypeOther,
+      variantIndex: aiVariant,
+    });
+    if (!title.trim() && res.suggestedTitle) {
+      setTitle(res.suggestedTitle);
+    }
+    setObjective(res.objective);
+    setUsageDescription(res.usageDescription);
+    setStudentOutcome(res.studentOutcome);
+    setAiVariant((v) => v + 1);
+    setAiNotice("✨ AI ช่วยคิดข้อความให้ครบทั้ง 3 หัวข้อเรียบร้อยแล้ว! (กดซ้ำเพื่อเปลี่ยนสำนวนใหม่ หรือแก้ไขเพิ่มเติมได้ตามต้องการ)");
+    setTimeout(() => setAiNotice(""), 5000);
+  };
+
+  // AI Handler: Fill single field
+  const handleAiFillSingle = (field: "objective" | "usage" | "outcome") => {
+    const res = generateAiMediaContent({
+      title,
+      targetGrade,
+      subjectGroup,
+      mediaType,
+      mediaTypeOther,
+      variantIndex: aiVariant,
+    });
+    if (field === "objective") setObjective(res.objective);
+    if (field === "usage") setUsageDescription(res.usageDescription);
+    if (field === "outcome") setStudentOutcome(res.studentOutcome);
+    setAiVariant((v) => v + 1);
+  };
+
   // Handle image files selection
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -156,7 +248,9 @@ export default function SubmitPage() {
     const newFilesCount = files.length;
 
     if (currentCount + newFilesCount > totalAllowed) {
-      setErrorMsg(`สามารถแนบภาพถ่ายได้สูงสุดไม่เกิน 10 รูปต่อรายการ (ท่านเลือกไว้แล้ว ${currentCount} รูป)`);
+      setErrorMsg(
+        `สามารถแนบภาพถ่ายได้สูงสุดไม่เกิน 10 รูปต่อรายการ (ท่านเลือกไว้แล้ว ${currentCount} รูป)`
+      );
       return;
     }
 
@@ -165,14 +259,12 @@ export default function SubmitPage() {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
 
-      // Validate file type
       const validTypes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
       if (!validTypes.includes(file.type)) {
         setErrorMsg("รองรับเฉพาะไฟล์ภาพนามสกุล JPG, JPEG, PNG และ WEBP เท่านั้น");
         continue;
       }
 
-      // Client-side image compression
       const compressed = await compressImage(file, 1600, 1600, 0.82);
       const previewUrl = URL.createObjectURL(compressed);
 
@@ -185,7 +277,6 @@ export default function SubmitPage() {
     }
 
     setSelectedImages((prev) => [...prev, ...processedImages]);
-    // Reset file input
     e.target.value = "";
   };
 
@@ -229,8 +320,7 @@ export default function SubmitPage() {
 
     try {
       if (!isConfigured) {
-        // Mock save if not configured
-        setUploadProgress("บันทึกข้อมูลเรียบร้อย (โหมดเตรียมความพร้อม)");
+        setUploadProgress("บันทึกข้อมูลเรียบร้อย");
         setSuccessMsg("บันทึกข้อมูลผลงานสื่อเรียบร้อยแล้ว!");
         setTimeout(() => router.push("/"), 1500);
         return;
@@ -256,11 +346,9 @@ export default function SubmitPage() {
           });
 
         if (uploadError) {
-          console.error("Storage upload error:", uploadError);
           throw new Error(`ไม่สามารถอัปโหลดภาพที่ ${i + 1} ได้: ${uploadError.message}`);
         }
 
-        // Get Public URL
         const { data: publicUrlData } = supabase.storage
           .from("submission-images")
           .getPublicUrl(filePath);
@@ -313,13 +401,7 @@ export default function SubmitPage() {
           display_order: idx + 1,
         }));
 
-        const { error: imgInsertError } = await supabase
-          .from("submission_images")
-          .insert(imageRows);
-
-        if (imgInsertError) {
-          console.error("Image record insert error:", imgInsertError);
-        }
+        await supabase.from("submission_images").insert(imageRows);
       }
 
       setSuccessMsg("ส่งผลงานสื่อการจัดการเรียนรู้สำเร็จเรียบร้อยแล้ว!");
@@ -345,22 +427,27 @@ export default function SubmitPage() {
           <ArrowLeft className="w-4 h-4" />
           <span>กลับหน้าหลัก</span>
         </Link>
-        <span className="text-xs text-slate-400">
-          โรงเรียนวัดโป่งแรด (ปคุณวิทยาคาร)
-        </span>
+        <span className="text-xs text-slate-400">{settings.schoolName}</span>
       </div>
 
       {/* Title Card */}
       <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200/80 shadow-sm space-y-2">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200">
           <UploadCloud className="w-4 h-4" />
-          <span>แบบฟอร์มส่งผลงาน</span>
+          <span>
+            แบบฟอร์มส่งผลงาน •{" "}
+            {activeSemesterMode === "semester_2"
+              ? `ภาคเรียนที่ 2/${selectedYearObj?.year_be || "2569"}`
+              : activeSemesterMode === "semester_1"
+              ? `ภาคเรียนที่ 1/${selectedYearObj?.year_be || "2569"}`
+              : `ปีการศึกษา ${selectedYearObj?.year_be || "2569"}`}
+          </span>
         </div>
         <h1 className="text-xl sm:text-2xl font-bold text-navy-950">
           ส่งสื่อการจัดการเรียนรู้
         </h1>
         <p className="text-xs sm:text-sm text-slate-600">
-          กรุณากรอกข้อมูลสื่อการจัดการเรียนรู้ พร้อมแนบภาพถ่ายขณะนำสื่อไปใช้ในการจัดการเรียนการสอน (ส่งอย่างน้อยเดือนละ 1 ชิ้น)
+          กรอกข้อมูลสื่อหรือกดปุ่ม <strong>&quot;✨ AI ช่วยคิดข้อความอัตโนมัติ&quot;</strong> เพื่อลดภาระงานเอกสาร พร้อมแนบภาพถ่ายการใช้สื่อในชั้นเรียน (ไม่เกิน 10 รูป)
         </p>
       </div>
 
@@ -377,7 +464,9 @@ export default function SubmitPage() {
           <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600 mt-0.5" />
           <div>
             <div className="font-semibold">{successMsg}</div>
-            <div className="text-xs text-emerald-700 mt-0.5">ระบบกำลังนำท่านไปยังคลังผลงานสื่อ...</div>
+            <div className="text-xs text-emerald-700 mt-0.5">
+              ระบบกำลังนำท่านไปยังคลังผลงานสื่อ...
+            </div>
           </div>
         </div>
       )}
@@ -388,7 +477,7 @@ export default function SubmitPage() {
         <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
           <h2 className="text-sm font-bold text-navy-950 flex items-center gap-2 border-b border-slate-100 pb-3">
             <GraduationCap className="w-4 h-4 text-blue-600" />
-            <span>1. ข้อมูลผู้ส่งและรอบการส่ง</span>
+            <span>1. ข้อมูลผู้ส่งและรอบการส่งสื่อ</span>
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -451,10 +540,20 @@ export default function SubmitPage() {
               </select>
             </div>
 
-            {/* Month Select (10 active months only, October excluded) */}
+            {/* Month Select (Filtered to Semester 2 for 2569!) */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                เดือนที่ส่งสื่อ <span className="text-red-500">*</span>
+                เดือนที่ส่งสื่อ{" "}
+                <span className="text-blue-600 font-normal">
+                  (
+                  {activeSemesterMode === "semester_2"
+                    ? `เทอม 2/${selectedYearObj?.year_be || "2569"}`
+                    : activeSemesterMode === "semester_1"
+                    ? `เทอม 1/${selectedYearObj?.year_be || "2569"}`
+                    : "10 เดือน"}
+                  )
+                </span>{" "}
+                <span className="text-red-500">*</span>
               </label>
               <select
                 required
@@ -462,36 +561,28 @@ export default function SubmitPage() {
                 onChange={(e) => setSubmissionMonthId(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
               >
-                <option value="">-- เลือกเดือน --</option>
-                <optgroup label="ภาคเรียนที่ 1">
-                  {months
-                    .filter((m) => m.semester === 1)
-                    .map((m) => (
-                      <option key={m.id || m.month_no} value={m.id}>
-                        {m.month_name} ({m.short_name})
-                      </option>
-                    ))}
-                </optgroup>
-                <optgroup label="ภาคเรียนที่ 2 (ไม่รวม ต.ค.)">
-                  {months
-                    .filter((m) => m.semester === 2)
-                    .map((m) => (
-                      <option key={m.id || m.month_no} value={m.id}>
-                        {m.month_name} ({m.short_name})
-                      </option>
-                    ))}
-                </optgroup>
+                {availableMonths.map((m) => (
+                  <option key={m.id || m.month_no} value={m.id}>
+                    {m.month_name} ({m.short_name}) — ภาคเรียนที่ {m.semester}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
         </div>
 
-        {/* Section 2: Media Details */}
+        {/* Section 2: Media Details + Free AI Helper */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
-          <h2 className="text-sm font-bold text-navy-950 flex items-center gap-2 border-b border-slate-100 pb-3">
-            <BookOpen className="w-4 h-4 text-blue-600" />
-            <span>2. รายละเอียดสื่อการจัดการเรียนรู้</span>
-          </h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <h2 className="text-sm font-bold text-navy-950 flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-blue-600" />
+              <span>2. รายละเอียดสื่อการจัดการเรียนรู้</span>
+            </h2>
+            <span className="text-[11px] text-violet-700 bg-violet-50 border border-violet-200 px-2.5 py-1 rounded-full font-semibold inline-flex items-center gap-1 self-start sm:self-auto">
+              <Sparkles className="w-3 h-3" />
+              <span>มีระบบ AI ช่วยคิดคำให้ฟรี ลดภาระงานครู</span>
+            </span>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Target Grade */}
@@ -530,21 +621,6 @@ export default function SubmitPage() {
               />
             </div>
 
-            {/* Media Title */}
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                ชื่อสื่อการจัดการเรียนรู้ <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="เช่น บอร์ดเกมคำศัพท์หรรษา, สื่อบัตรภาพวัฏจักรชีวิตของผีเสื้อ"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
             {/* Media Type */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -580,55 +656,145 @@ export default function SubmitPage() {
                 />
               </div>
             )}
+
+            {/* Media Title */}
+            <div className="sm:col-span-2 space-y-2">
+              <label className="block text-xs font-semibold text-slate-700">
+                ชื่อสื่อการจัดการเรียนรู้ <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="พิมพ์ชื่อสื่อ หรือคลิกเลือกแนวทางชื่อสื่อด้านล่าง..."
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              {/* Quick Suggested Title Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[11px] text-slate-500 font-medium">
+                  💡 แนะนำชื่อสื่อตามวิชา:
+                </span>
+                {suggestedTitles.map((st, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setTitle(st)}
+                    className="text-[11px] px-2.5 py-1 rounded-full bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 transition-colors cursor-pointer"
+                  >
+                    + {st}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
+
+          {/* Magic AI Banner Button */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-violet-50 via-blue-50 to-indigo-50 border border-violet-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="text-xs sm:text-sm font-bold text-navy-950 flex items-center gap-1.5">
+                <Wand2 className="w-4 h-4 text-violet-600" />
+                <span>ผู้ช่วย AI อัจฉริยะ (ลดภาระงานเอกสารของครู)</span>
+              </div>
+              <p className="text-xs text-slate-600">
+                เพียงใส่ชื่อสื่อด้านบน แล้วกดปุ่มนี้ ระบบจะช่วยร่าง <strong>วัตถุประสงค์, วิธีการใช้สื่อ และผลที่เกิดกับผู้เรียน</strong> ให้กระชับตรงตามสื่อทันที!
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAiFillAll}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-violet-500/20 transition-all hover:scale-[1.02] cursor-pointer shrink-0"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>✨ AI ช่วยคิดคำทั้ง 3 ข้ออัตโนมัติ</span>
+            </button>
+          </div>
+
+          {aiNotice && (
+            <div className="p-3 bg-violet-50 border border-violet-200 text-violet-800 rounded-xl text-xs font-semibold flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-violet-600 shrink-0" />
+              <span>{aiNotice}</span>
+            </div>
+          )}
 
           {/* Objective */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <Target className="w-3.5 h-3.5 text-blue-600" />
-              <span>วัตถุประสงค์ของการใช้สื่อ</span>
-              <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Target className="w-3.5 h-3.5 text-blue-600" />
+                <span>วัตถุประสงค์ของการใช้สื่อ</span>
+                <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => handleAiFillSingle("objective")}
+                className="text-[11px] font-semibold text-violet-700 hover:text-violet-900 flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>AI ช่วยคิด/ปรับสำนวนข้อนี้</span>
+              </button>
+            </div>
             <textarea
               required
-              rows={3}
+              rows={2}
               value={objective}
               onChange={(e) => setObjective(e.target.value)}
-              placeholder="เพื่อให้นักเรียนเข้าใจเนื้อหาเรื่อง... สามารถอธิบายและระบุได้ถูกต้อง"
+              placeholder="กดปุ่ม '✨ AI ช่วยคิดคำ' ด้านบน หรือพิมพ์วัตถุประสงค์..."
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
             />
           </div>
 
           {/* Usage description */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-indigo-600" />
-              <span>รายละเอียด / วิธีการใช้สื่อโดยย่อ</span>
-              <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                <span>รายละเอียด / วิธีการใช้สื่อโดยย่อ</span>
+                <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => handleAiFillSingle("usage")}
+                className="text-[11px] font-semibold text-violet-700 hover:text-violet-900 flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>AI ช่วยคิด/ปรับสำนวนข้อนี้</span>
+              </button>
+            </div>
             <textarea
               required
               rows={3}
               value={usageDescription}
               onChange={(e) => setUsageDescription(e.target.value)}
-              placeholder="1. อธิบายกติกา 2. ให้นักเรียนแบ่งกลุ่มร่วมกิจกรรม 3. สรุปความรู้หลังการใช้สื่อ"
+              placeholder="กดปุ่ม '✨ AI ช่วยคิดคำ' ด้านบน หรือพิมพ์วิธีการใช้สื่อ..."
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
             />
           </div>
 
           {/* Student outcome */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <Award className="w-3.5 h-3.5 text-amber-600" />
-              <span>ผลที่เกิดขึ้นกับผู้เรียน</span>
-              <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Award className="w-3.5 h-3.5 text-amber-600" />
+                <span>ผลที่เกิดขึ้นกับผู้เรียน</span>
+                <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => handleAiFillSingle("outcome")}
+                className="text-[11px] font-semibold text-violet-700 hover:text-violet-900 flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>AI ช่วยคิด/ปรับสำนวนข้อนี้</span>
+              </button>
+            </div>
             <textarea
               required
-              rows={3}
+              rows={2}
               value={studentOutcome}
               onChange={(e) => setStudentOutcome(e.target.value)}
-              placeholder="นักเรียนมีความกระตือรือร้นในการเรียนรู้ ร้อยละ 90 ผ่านเกณฑ์การประเมินประจำหน่วย"
+              placeholder="กดปุ่ม '✨ AI ช่วยคิดคำ' ด้านบน หรือพิมพ์ผลที่เกิดกับผู้เรียน..."
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
             />
           </div>
@@ -648,7 +814,7 @@ export default function SubmitPage() {
           </div>
 
           <p className="text-xs text-slate-500">
-            แนบภาพถ่ายขณะนำสื่อไปใช้จริงในห้องเรียน เพื่อเป็นหลักฐานการดำเนินงาน (รองรับ JPG, PNG, WEBP ระบบจะบีบอัดภาพให้อัตโนมัติ)
+            แนบภาพถ่ายขณะนำสื่อไปใช้จริงในห้องเรียน (รองรับ JPG, PNG, WEBP สูงสุด 10 รูป ระบบจะบีบอัดภาพให้อัตโนมัติ และสามารถเข้ามาแก้ไข/เพิ่มรูปภาพภายหลังได้)
           </p>
 
           {/* Upload Dropzone */}
@@ -694,7 +860,7 @@ export default function SubmitPage() {
                   <button
                     type="button"
                     onClick={() => removeImage(idx)}
-                    className="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                    className="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-sm cursor-pointer"
                     title="ลบรูปนี้"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

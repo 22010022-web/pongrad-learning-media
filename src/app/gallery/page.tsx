@@ -10,24 +10,27 @@ import {
   SubmissionMonth,
   AcademicYear,
   MEDIA_TYPES,
-  GRADE_LEVELS,
+  SUBMISSION_MONTHS_PRESET,
+  ACADEMIC_YEARS_PRESET,
 } from "@/types/database";
 import { SubmissionDetailModal } from "@/components/submission-detail-modal";
 import { formatDateThai } from "@/lib/utils";
 import {
+  fetchSchoolSettings,
+  getActiveSemesterModeForYear,
+  filterMonthsBySemesterMode,
+  SchoolSettings,
+  DEFAULT_SCHOOL_SETTINGS,
+} from "@/lib/school-settings";
+import { exportSubmissionA4Pdf } from "@/lib/pdf-report";
+import {
   LayoutGrid,
   Search,
-  Filter,
   Eye,
   Images,
-  GraduationCap,
-  BookOpen,
-  Calendar,
-  Tag,
   PlusCircle,
-  Sparkles,
-  School,
   X,
+  FileText,
 } from "lucide-react";
 
 export default function GalleryPage() {
@@ -35,12 +38,14 @@ export default function GalleryPage() {
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [months, setMonths] = useState<SubmissionMonth[]>([]);
+  const [allMonths, setAllMonths] = useState<SubmissionMonth[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [schoolSettings, setSchoolSettings] = useState<SchoolSettings>(DEFAULT_SCHOOL_SETTINGS);
   const [loading, setLoading] = useState(true);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedYearId, setSelectedYearId] = useState("all");
   const [selectedTeacherId, setSelectedTeacherId] = useState("all");
   const [selectedMonthId, setSelectedMonthId] = useState("all");
   const [selectedMediaType, setSelectedMediaType] = useState("all");
@@ -52,7 +57,19 @@ export default function GalleryPage() {
   useEffect(() => {
     async function loadData() {
       setLoading(true);
+      const presetMonths = SUBMISSION_MONTHS_PRESET.map((m) => ({
+        ...m,
+        created_at: "",
+      }));
+      const presetYears = ACADEMIC_YEARS_PRESET.map((y) => ({
+        ...y,
+        created_at: "",
+      }));
+
       try {
+        const settings = await fetchSchoolSettings();
+        setSchoolSettings(settings);
+
         if (isConfigured) {
           // Submissions with joins
           const { data: subData } = await supabase
@@ -77,14 +94,21 @@ export default function GalleryPage() {
             .from("submission_months")
             .select("*")
             .order("display_order", { ascending: true });
-          if (mData) setMonths(mData as SubmissionMonth[]);
+          setAllMonths(
+            mData && mData.length > 0 ? (mData as SubmissionMonth[]) : presetMonths
+          );
 
           // Academic Years
           const { data: yData } = await supabase
             .from("academic_years")
             .select("*")
             .order("year_be", { ascending: false });
-          if (yData) setAcademicYears(yData as AcademicYear[]);
+          setAcademicYears(
+            yData && yData.length > 0 ? (yData as AcademicYear[]) : presetYears
+          );
+        } else {
+          setAllMonths(presetMonths);
+          setAcademicYears(presetYears);
         }
       } catch (err) {
         console.error("Error loading gallery data:", err);
@@ -96,6 +120,18 @@ export default function GalleryPage() {
     loadData();
   }, [isConfigured]);
 
+  const activeYearObj =
+    selectedYearId !== "all"
+      ? academicYears.find((y) => y.id === selectedYearId)
+      : academicYears.find((y) => y.is_current) || academicYears[0];
+  const activeYearBe = activeYearObj?.year_be || "2569";
+  const activeSemesterMode = getActiveSemesterModeForYear(activeYearBe, schoolSettings);
+
+  const months = useMemo(
+    () => filterMonthsBySemesterMode(allMonths, activeSemesterMode),
+    [allMonths, activeSemesterMode]
+  );
+
   // Filtered submissions
   const filteredSubmissions = useMemo(() => {
     return submissions.filter((sub) => {
@@ -105,6 +141,9 @@ export default function GalleryPage() {
         sub.teacher?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         sub.subject_group.toLowerCase().includes(searchQuery.toLowerCase()) ||
         sub.objective.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchYear =
+        selectedYearId === "all" || sub.academic_year_id === selectedYearId;
 
       const matchTeacher =
         selectedTeacherId === "all" || sub.teacher_id === selectedTeacherId;
@@ -118,11 +157,19 @@ export default function GalleryPage() {
       const matchGrade =
         selectedGrade === "all" || sub.target_grade.includes(selectedGrade);
 
-      return matchSearch && matchTeacher && matchMonth && matchType && matchGrade;
+      return (
+        matchSearch &&
+        matchYear &&
+        matchTeacher &&
+        matchMonth &&
+        matchType &&
+        matchGrade
+      );
     });
   }, [
     submissions,
     searchQuery,
+    selectedYearId,
     selectedTeacherId,
     selectedMonthId,
     selectedMediaType,
@@ -131,10 +178,20 @@ export default function GalleryPage() {
 
   const resetFilters = () => {
     setSearchQuery("");
+    setSelectedYearId("all");
     setSelectedTeacherId("all");
     setSelectedMonthId("all");
     setSelectedMediaType("all");
     setSelectedGrade("all");
+  };
+
+  const handleUpdatedSubmission = (updated: Submission) => {
+    setSubmissions((prev) =>
+      prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s))
+    );
+    setActiveSubmission((prev) =>
+      prev && prev.id === updated.id ? { ...prev, ...updated } : prev
+    );
   };
 
   return (
@@ -186,7 +243,21 @@ export default function GalleryPage() {
         </div>
 
         {/* Dropdown Filters */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+          {/* Year Filter */}
+          <select
+            value={selectedYearId}
+            onChange={(e) => setSelectedYearId(e.target.value)}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">ทุกปีการศึกษา</option>
+            {academicYears.map((y) => (
+              <option key={y.id} value={y.id}>
+                ปีการศึกษา {y.year_be}
+              </option>
+            ))}
+          </select>
+
           {/* Teacher Filter */}
           <select
             value={selectedTeacherId}
@@ -207,7 +278,7 @@ export default function GalleryPage() {
             onChange={(e) => setSelectedMonthId(e.target.value)}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">ทุกเดือนที่ส่ง (10 เดือน)</option>
+            <option value="all">ทุกเดือนที่ส่ง ({months.length} เดือน)</option>
             {months.map((m) => (
               <option key={m.id || m.month_no} value={m.id}>
                 {m.month_name} ({m.short_name})
@@ -233,7 +304,7 @@ export default function GalleryPage() {
           <select
             value={selectedGrade}
             onChange={(e) => setSelectedGrade(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 col-span-2 sm:col-span-1"
           >
             <option value="all">ทุกระดับชั้น</option>
             <option value="อนุบาล">ระดับปฐมวัย (อ.1 - อ.3)</option>
@@ -252,6 +323,7 @@ export default function GalleryPage() {
             พบผลงานทั้งหมด <strong>{filteredSubmissions.length}</strong> รายการ
           </span>
           {(searchQuery ||
+            selectedYearId !== "all" ||
             selectedTeacherId !== "all" ||
             selectedMonthId !== "all" ||
             selectedMediaType !== "all" ||
@@ -373,9 +445,9 @@ export default function GalleryPage() {
                   </div>
 
                   {/* Footer & Teacher Info */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="font-semibold text-slate-900">
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-900 truncate">
                         {sub.teacher?.name}
                       </div>
                       <div className="text-[11px] text-slate-400">
@@ -383,13 +455,24 @@ export default function GalleryPage() {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => setActiveSubmission(sub)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-semibold text-xs transition-colors"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>ดูรายละเอียด</span>
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => exportSubmissionA4Pdf(sub)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold text-xs transition-colors cursor-pointer"
+                        title="พิมพ์รายงาน PDF A4 แนวตั้ง"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>PDF</span>
+                      </button>
+
+                      <button
+                        onClick={() => setActiveSubmission(sub)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-semibold text-xs transition-colors cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>ดู/แก้ไข</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -402,6 +485,7 @@ export default function GalleryPage() {
       <SubmissionDetailModal
         submission={activeSubmission}
         onClose={() => setActiveSubmission(null)}
+        onUpdated={handleUpdatedSubmission}
       />
     </div>
   );

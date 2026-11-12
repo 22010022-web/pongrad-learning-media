@@ -1,17 +1,27 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { supabase } from "@/lib/supabase/client";
 import {
   Submission,
   SubmissionMonth,
+  AcademicYear,
   SUBMISSION_MONTHS_PRESET,
+  ACADEMIC_YEARS_PRESET,
 } from "@/types/database";
 import { SubmissionDetailModal } from "@/components/submission-detail-modal";
 import { formatDateThai } from "@/lib/utils";
+import {
+  fetchSchoolSettings,
+  getActiveSemesterModeForYear,
+  filterMonthsBySemesterMode,
+  getSemesterLabel,
+  SchoolSettings,
+  DEFAULT_SCHOOL_SETTINGS,
+} from "@/lib/school-settings";
+import { exportSubmissionA4Pdf } from "@/lib/pdf-report";
 import {
   History,
   CheckCircle2,
@@ -20,21 +30,23 @@ import {
   Trash2,
   Eye,
   Calendar,
-  Sparkles,
   BookOpen,
-  GraduationCap,
-  AlertCircle,
   LogIn,
+  FileText,
+  Pencil,
 } from "lucide-react";
 
 export default function MySubmissionsPage() {
-  const router = useRouter();
   const { user, profile, teacher, isConfigured } = useAuth();
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [months, setMonths] = useState<SubmissionMonth[]>([]);
+  const [allMonths, setAllMonths] = useState<SubmissionMonth[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [selectedYearId, setSelectedYearId] = useState<string>("");
+  const [schoolSettings, setSchoolSettings] = useState<SchoolSettings>(DEFAULT_SCHOOL_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+  const [openInEditMode, setOpenInEditMode] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
@@ -53,14 +65,35 @@ export default function MySubmissionsPage() {
         ...m,
         created_at: "",
       }));
+      const presetYears = ACADEMIC_YEARS_PRESET.map((y) => ({
+        ...y,
+        created_at: "",
+      }));
+
       try {
+        const settings = await fetchSchoolSettings();
+        setSchoolSettings(settings);
+
         if (isConfigured) {
+          // Fetch academic years
+          const { data: yData } = await supabase
+            .from("academic_years")
+            .select("*")
+            .order("year_be", { ascending: false });
+          const finalYears =
+            yData && yData.length > 0 ? (yData as AcademicYear[]) : presetYears;
+          setAcademicYears(finalYears);
+          const currentY = finalYears.find((y) => y.is_current) || finalYears[0];
+          if (currentY) setSelectedYearId(currentY.id);
+
           // Fetch months
           const { data: mData } = await supabase
             .from("submission_months")
             .select("*")
             .order("display_order", { ascending: true });
-          setMonths(mData && mData.length > 0 ? (mData as SubmissionMonth[]) : presetMonths);
+          setAllMonths(
+            mData && mData.length > 0 ? (mData as SubmissionMonth[]) : presetMonths
+          );
 
           // Fetch teacher submissions
           let query = supabase
@@ -79,7 +112,9 @@ export default function MySubmissionsPage() {
           const { data: sData } = await query;
           if (sData) setSubmissions(sData as Submission[]);
         } else {
-          setMonths(presetMonths);
+          setAllMonths(presetMonths);
+          setAcademicYears(presetYears);
+          setSelectedYearId(presetYears[0].id);
         }
       } catch (err) {
         console.error("Error loading my submissions:", err);
@@ -90,6 +125,21 @@ export default function MySubmissionsPage() {
 
     loadData();
   }, [user, teacherId, isConfigured]);
+
+  const activeYearObj =
+    academicYears.find((y) => y.id === selectedYearId) || academicYears[0];
+  const activeYearBe = activeYearObj?.year_be || "2569";
+  const activeSemesterMode = getActiveSemesterModeForYear(activeYearBe, schoolSettings);
+
+  const months = useMemo(
+    () => filterMonthsBySemesterMode(allMonths, activeSemesterMode),
+    [allMonths, activeSemesterMode]
+  );
+
+  const yearSubmissions = useMemo(() => {
+    if (!selectedYearId) return submissions;
+    return submissions.filter((s) => s.academic_year_id === selectedYearId);
+  }, [submissions, selectedYearId]);
 
   const handleDelete = async (id: string) => {
     setDeleting(true);
@@ -107,6 +157,15 @@ export default function MySubmissionsPage() {
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handleUpdatedSubmission = (updated: Submission) => {
+    setSubmissions((prev) =>
+      prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s))
+    );
+    setSelectedSubmission((prev) =>
+      prev && prev.id === updated.id ? { ...prev, ...updated } : prev
+    );
   };
 
   if (!user) {
@@ -131,12 +190,11 @@ export default function MySubmissionsPage() {
     );
   }
 
-  // Calculate monthly submission checklist
-  const submittedMonthIds = new Set(submissions.map((s) => s.submission_month_id));
-  const totalMonthsCount = months.length || 10;
+  const totalMonthsCount = months.length || 5;
   const completedMonthsCount = months.filter((m) =>
-    submissions.some(
-      (s) => s.submission_month_id === m.id || s.submission_month?.month_no === m.month_no
+    yearSubmissions.some(
+      (s) =>
+        s.submission_month_id === m.id || s.submission_month?.month_no === m.month_no
     )
   ).length;
 
@@ -153,17 +211,40 @@ export default function MySubmissionsPage() {
             ประวัติการส่งสื่อการจัดการเรียนรู้
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            ครูผู้สอน: <strong>{teacher?.name || profile?.full_name || user.email}</strong> • {teacher?.grade_level} {teacher?.subjects ? `(${teacher.subjects})` : ""}
+            ครูผู้สอน:{" "}
+            <strong>{teacher?.name || profile?.full_name || user.email}</strong>{" "}
+            {teacher?.grade_level ? `• ${teacher.grade_level}` : ""}{" "}
+            {teacher?.subjects ? `(${teacher.subjects})` : ""}
           </p>
         </div>
 
-        <Link
-          href="/submit"
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-sm self-start sm:self-auto"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>ส่งสื่อการสอนเพิ่ม</span>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {academicYears.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs flex items-center gap-1.5 font-semibold text-slate-700 shadow-xs">
+              <Calendar className="w-3.5 h-3.5 text-blue-600" />
+              <span>ปีการศึกษา:</span>
+              <select
+                value={selectedYearId}
+                onChange={(e) => setSelectedYearId(e.target.value)}
+                className="bg-transparent font-bold text-navy-900 focus:outline-none cursor-pointer"
+              >
+                {academicYears.map((y) => (
+                  <option key={y.id} value={y.id}>
+                    {y.year_be}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <Link
+            href="/submit"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-sm"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>ส่งสื่อการสอนเพิ่ม</span>
+          </Link>
+        </div>
       </div>
 
       {actionMsg && (
@@ -173,15 +254,15 @@ export default function MySubmissionsPage() {
         </div>
       )}
 
-      {/* 10-Month Status Checklist */}
+      {/* Semester Month Status Checklist */}
       <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/90 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-navy-950">
-              สถานะการส่งสื่อครบ 10 เดือนในปีการศึกษา
+              สถานะการส่งสื่อ {getSemesterLabel(activeSemesterMode, activeYearBe)}
             </h2>
             <p className="text-xs text-slate-500">
-              เป้าหมายอย่างน้อยเดือนละ 1 ชิ้น รวม 10 เดือน (เว้นเดือนตุลาคม)
+              เป้าหมายอย่างน้อยเดือนละ 1 ชิ้น รวม {totalMonthsCount} เดือน
             </p>
           </div>
           <div className="text-right">
@@ -192,11 +273,13 @@ export default function MySubmissionsPage() {
           </div>
         </div>
 
-        {/* 10 Month Checklist Grid */}
+        {/* Month Checklist Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-2">
           {months.map((m) => {
-            const hasSub = submissions.some(
-              (s) => s.submission_month_id === m.id || s.submission_month?.month_no === m.month_no
+            const hasSub = yearSubmissions.some(
+              (s) =>
+                s.submission_month_id === m.id ||
+                s.submission_month?.month_no === m.month_no
             );
 
             return (
@@ -210,7 +293,9 @@ export default function MySubmissionsPage() {
               >
                 <div>
                   <div className="font-semibold text-xs">{m.month_name}</div>
-                  <div className="text-[10px] text-slate-400">เทอม {m.semester}</div>
+                  <div className="text-[10px] text-slate-400">
+                    ภาคเรียนที่ {m.semester}/{activeYearBe}
+                  </div>
                 </div>
                 {hasSub ? (
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
@@ -226,12 +311,14 @@ export default function MySubmissionsPage() {
       {/* Submissions List */}
       <div className="space-y-4">
         <h2 className="text-base font-bold text-navy-950">
-          รายการผลงานที่ส่งแล้ว ({submissions.length} รายการ)
+          รายการผลงานที่ส่งแล้ว ({yearSubmissions.length} รายการ)
         </h2>
 
         {loading ? (
-          <div className="py-12 text-center text-xs text-slate-500">กำลังโหลดรายการ...</div>
-        ) : submissions.length === 0 ? (
+          <div className="py-12 text-center text-xs text-slate-500">
+            กำลังโหลดรายการ...
+          </div>
+        ) : yearSubmissions.length === 0 ? (
           <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center space-y-3">
             <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
             <h3 className="font-bold text-navy-950 text-sm">ยังไม่มีผลงานที่ส่ง</h3>
@@ -248,19 +335,22 @@ export default function MySubmissionsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {submissions.map((sub) => {
+            {yearSubmissions.map((sub) => {
               const cover = sub.cover_image_url || sub.images?.[0]?.image_url;
 
               return (
                 <div
                   key={sub.id}
-                  className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:border-blue-300 transition-colors"
+                  className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 hover:border-blue-300 transition-colors"
                 >
                   <div className="flex items-start gap-4">
                     {/* Thumbnail */}
                     <div
                       className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200 cursor-pointer"
-                      onClick={() => setSelectedSubmission(sub)}
+                      onClick={() => {
+                        setOpenInEditMode(false);
+                        setSelectedSubmission(sub);
+                      }}
                     >
                       {cover ? (
                         <img
@@ -288,7 +378,10 @@ export default function MySubmissionsPage() {
                       </div>
 
                       <h3
-                        onClick={() => setSelectedSubmission(sub)}
+                        onClick={() => {
+                          setOpenInEditMode(false);
+                          setSelectedSubmission(sub);
+                        }}
                         className="font-bold text-navy-950 text-sm sm:text-base cursor-pointer hover:text-blue-700 transition-colors"
                       >
                         {sub.title}
@@ -299,24 +392,54 @@ export default function MySubmissionsPage() {
                       </p>
 
                       <div className="text-[11px] text-slate-400 pt-1">
-                        ส่งเมื่อ: {formatDateThai(sub.created_at)} • รูปภาพแนบ: {sub.images?.length || 1} รูป
+                        ส่งเมื่อ: {formatDateThai(sub.created_at)} • รูปภาพแนบ:{" "}
+                        {sub.images?.length || (sub.cover_image_url ? 1 : 0)} / 10 รูป
                       </div>
                     </div>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 self-end lg:self-center shrink-0">
+                    {/* PDF A4 Report */}
                     <button
-                      onClick={() => setSelectedSubmission(sub)}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      onClick={() => exportSubmissionA4Pdf(sub)}
+                      className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="ส่งออกรายงาน PDF ขนาด A4 แนวตั้ง"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>รายงาน PDF (A4)</span>
+                    </button>
+
+                    {/* Edit submission & images */}
+                    <button
+                      onClick={() => {
+                        setOpenInEditMode(true);
+                        setSelectedSubmission(sub);
+                      }}
+                      className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="แก้ไขข้อมูลสื่อ เพิ่มหรือลบรูปภาพ (สูงสุด 10 รูป)"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>แก้ไขสื่อ/รูปภาพ</span>
+                    </button>
+
+                    {/* View detail & download images */}
+                    <button
+                      onClick={() => {
+                        setOpenInEditMode(false);
+                        setSelectedSubmission(sub);
+                      }}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      <span>ดูรายละเอียด</span>
+                      <span>ดูรายละเอียด / โหลดภาพ</span>
                     </button>
 
                     {deleteConfirmId === sub.id ? (
                       <div className="flex items-center gap-1.5 bg-red-50 p-1 rounded-lg border border-red-200">
-                        <span className="text-[11px] text-red-700 font-semibold px-1">ยืนยันลบ?</span>
+                        <span className="text-[11px] text-red-700 font-semibold px-1">
+                          ยืนยันลบ?
+                        </span>
                         <button
                           disabled={deleting}
                           onClick={() => handleDelete(sub.id)}
@@ -334,7 +457,7 @@ export default function MySubmissionsPage() {
                     ) : (
                       <button
                         onClick={() => setDeleteConfirmId(sub.id)}
-                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                         title="ลบผลงานนี้"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -348,10 +471,15 @@ export default function MySubmissionsPage() {
         )}
       </div>
 
-      {/* Detail Modal */}
+      {/* Detail & Edit Modal */}
       <SubmissionDetailModal
         submission={selectedSubmission}
-        onClose={() => setSelectedSubmission(null)}
+        initialEditMode={openInEditMode}
+        onClose={() => {
+          setSelectedSubmission(null);
+          setOpenInEditMode(false);
+        }}
+        onUpdated={handleUpdatedSubmission}
       />
     </div>
   );

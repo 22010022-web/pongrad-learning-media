@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import Link from "next/link";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/context/auth-context";
@@ -16,32 +15,31 @@ import {
 } from "@/types/database";
 import { formatDateThai } from "@/lib/utils";
 import {
+  fetchSchoolSettings,
+  getActiveSemesterModeForYear,
+  filterMonthsBySemesterMode,
+  getSemesterLabel,
+  SchoolSettings,
+  DEFAULT_SCHOOL_SETTINGS,
+} from "@/lib/school-settings";
+import {
   BarChart3,
-  Download,
   Printer,
   Calendar,
-  CheckCircle2,
-  XCircle,
   FileSpreadsheet,
   School,
-  Users,
-  Award,
-  ArrowLeft,
-  ShieldAlert,
 } from "lucide-react";
 
 export default function ReportsPage() {
-  const { user, isAdmin, isConfigured } = useAuth();
+  const { isConfigured } = useAuth();
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [months, setMonths] = useState<SubmissionMonth[]>([]);
+  const [allMonths, setAllMonths] = useState<SubmissionMonth[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [selectedYearId, setSelectedYearId] = useState<string>("");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [schoolSettings, setSchoolSettings] = useState<SchoolSettings>(DEFAULT_SCHOOL_SETTINGS);
   const [loading, setLoading] = useState<boolean>(true);
-
-  // Month filter for individual month deep dive
-  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>("all");
 
   useEffect(() => {
     async function loadData() {
@@ -51,6 +49,9 @@ export default function ReportsPage() {
       const presetYears = ACADEMIC_YEARS_PRESET.map((y) => ({ ...y, created_at: "" }));
 
       try {
+        const settings = await fetchSchoolSettings();
+        setSchoolSettings(settings);
+
         if (isConfigured) {
           const { data: tData } = await supabase
             .from("teachers")
@@ -72,7 +73,7 @@ export default function ReportsPage() {
             .from("submission_months")
             .select("*")
             .order("display_order", { ascending: true });
-          setMonths(mData && mData.length > 0 ? (mData as SubmissionMonth[]) : presetMonths);
+          setAllMonths(mData && mData.length > 0 ? (mData as SubmissionMonth[]) : presetMonths);
 
           const { data: sData } = await supabase
             .from("submissions")
@@ -82,7 +83,7 @@ export default function ReportsPage() {
           if (sData) setSubmissions(sData as Submission[]);
         } else {
           setTeachers(presetTeachers);
-          setMonths(presetMonths);
+          setAllMonths(presetMonths);
           setAcademicYears(presetYears);
           setSelectedYearId(presetYears[0].id);
         }
@@ -97,11 +98,26 @@ export default function ReportsPage() {
   }, [isConfigured]);
 
   const activeYearObj = academicYears.find((y) => y.id === selectedYearId) || academicYears[0];
+  const activeYearBe = activeYearObj?.year_be || "2569";
+  const activeSemesterMode = getActiveSemesterModeForYear(activeYearBe, schoolSettings);
 
-  // Filter submissions by year
+  const months = useMemo(
+    () => filterMonthsBySemesterMode(allMonths, activeSemesterMode),
+    [allMonths, activeSemesterMode]
+  );
+
+  const totalMonthsInTerm = months.length || 5;
+
+  // Filter submissions by year and active semester months
   const yearSubmissions = useMemo(() => {
-    return submissions.filter((s) => s.academic_year_id === selectedYearId || !selectedYearId);
-  }, [submissions, selectedYearId]);
+    const activeMonthIds = new Set(months.map((m) => m.id));
+    return submissions.filter((s) => {
+      const matchYear = s.academic_year_id === selectedYearId || !selectedYearId;
+      const matchMonth =
+        activeMonthIds.size === 0 || activeMonthIds.has(s.submission_month_id);
+      return matchYear && matchMonth;
+    });
+  }, [submissions, selectedYearId, months]);
 
   // Submission matrix map: `${teacher_id}_${month_id}` => Submission[]
   const submissionMatrixMap = useMemo(() => {
@@ -117,7 +133,7 @@ export default function ReportsPage() {
 
   // Export to Excel handler
   const handleExportExcel = () => {
-    const yearBe = activeYearObj?.year_be || "2569";
+    const yearBe = activeYearBe;
 
     // 1. Sheet 1: Matrix tracking
     const matrixData = teachers.map((teacher, idx) => {
@@ -136,8 +152,8 @@ export default function ReportsPage() {
         if (hasSub) submittedCount += 1;
       });
 
-      row["รวมส่ง (เดือน)"] = submittedCount;
-      row["สถานะร้อยละ (%)"] = Math.round((submittedCount / (months.length || 10)) * 100);
+      row["รวมส่ง (เดือน)"] = `${submittedCount} / ${totalMonthsInTerm}`;
+      row["สถานะร้อยละ (%)"] = Math.round((submittedCount / totalMonthsInTerm) * 100);
       return row;
     });
 
@@ -162,11 +178,14 @@ export default function ReportsPage() {
     const wsMatrix = XLSX.utils.json_to_sheet(matrixData);
     const wsDetail = XLSX.utils.json_to_sheet(submissionsDetailData);
 
-    XLSX.utils.book_append_sheet(wb, wsMatrix, "สรุปการส่งสื่อ 10 เดือน");
+    XLSX.utils.book_append_sheet(wb, wsMatrix, `สรุปการส่งสื่อ_${yearBe}`);
     XLSX.utils.book_append_sheet(wb, wsDetail, "รายการสื่อทั้งหมด");
 
     // Save file
-    XLSX.writeFile(wb, `รายงานการส่งสื่อการจัดการเรียนรู้_รร.วัดโป่งแรด_ปีการศึกษา_${yearBe}.xlsx`);
+    XLSX.writeFile(
+      wb,
+      `รายงานการส่งสื่อการจัดการเรียนรู้_รร.วัดโป่งแรด_${yearBe}.xlsx`
+    );
   };
 
   const handlePrint = () => {
@@ -183,10 +202,10 @@ export default function ReportsPage() {
             <span>รายงานสำหรับผู้บริหาร</span>
           </div>
           <h1 className="text-2xl font-bold text-navy-950">
-            รายงานการส่งสื่อการจัดการเรียนรู้
+            รายงานการส่งสื่อการจัดการเรียนรู้ ({getSemesterLabel(activeSemesterMode, activeYearBe)})
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            โรงเรียนวัดโป่งแรด (ปคุณวิทยาคาร) • สำนักงานเขตพื้นที่การศึกษาประถมศึกษาจันทบุรี เขต 1
+            {schoolSettings.schoolName} • {schoolSettings.affiliation}
           </p>
         </div>
 
@@ -230,15 +249,26 @@ export default function ReportsPage() {
 
       {/* Official Header for Print */}
       <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm print:shadow-none print:border-none space-y-4">
-        <div className="text-center space-y-1">
+        <div className="text-center space-y-1.5">
+          {schoolSettings.logoUrl ? (
+            <img
+              src={schoolSettings.logoUrl}
+              alt="ตราโรงเรียน"
+              className="w-16 h-16 object-contain mx-auto mb-1"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-navy-900 text-white flex items-center justify-center mx-auto mb-1">
+              <School className="w-6 h-6 text-gold-400" />
+            </div>
+          )}
           <h2 className="text-lg sm:text-xl font-bold text-navy-950">
             แบบรายงานสรุปการส่งสื่อการจัดการเรียนรู้ของครูผู้สอน
           </h2>
-          <p className="text-xs sm:text-sm text-slate-600">
-            โรงเรียนวัดโป่งแรด (ปคุณวิทยาคาร) ประจำปีการศึกษา {activeYearObj?.year_be || "2569"}
+          <p className="text-xs sm:text-sm text-slate-600 font-semibold">
+            {schoolSettings.schoolName} • ประจำ{getSemesterLabel(activeSemesterMode, activeYearBe)}
           </p>
           <p className="text-xs text-slate-400">
-            เกณฑ์การติดตาม: ครูทุกคนส่งผลงานสื่ออย่างน้อยเดือนละ 1 ชิ้น รวม 10 เดือน (เว้นช่วงปิดภาคเรียนเดือนตุลาคม)
+            เกณฑ์การติดตาม: ครูทุกคนส่งผลงานสื่ออย่างน้อยเดือนละ 1 ชิ้น รวม {totalMonthsInTerm} เดือน
           </p>
         </div>
 
@@ -253,7 +283,7 @@ export default function ReportsPage() {
                 {months.map((m) => (
                   <th
                     key={m.id || m.month_no}
-                    className="py-2 px-1 text-center border border-navy-800 min-w-[55px]"
+                    className="py-2 px-1 text-center border border-navy-800 min-w-[65px]"
                   >
                     <div>{m.short_name}</div>
                   </th>
@@ -301,10 +331,10 @@ export default function ReportsPage() {
                       );
                     })}
                     <td className="py-2.5 px-2 text-center border border-slate-200 font-bold text-navy-950">
-                      {submittedCount} / {months.length || 10}
+                      {submittedCount} / {totalMonthsInTerm}
                     </td>
                     <td className="py-2.5 px-2 text-center border border-slate-200 font-bold text-blue-700">
-                      {Math.round((submittedCount / (months.length || 10)) * 100)}%
+                      {Math.round((submittedCount / totalMonthsInTerm) * 100)}%
                     </td>
                   </tr>
                 );
@@ -322,8 +352,14 @@ export default function ReportsPage() {
           </div>
           <div>
             <p className="mb-10">ลงชื่อ........................................................ ผู้รับรอง</p>
-            <p>(........................................................)</p>
-            <p className="text-[11px] text-slate-500">ผู้อำนวยการโรงเรียนวัดโป่งแรด (ปคุณวิทยาคาร)</p>
+            <p>
+              (
+              {schoolSettings.directorName
+                ? ` ${schoolSettings.directorName} `
+                : "........................................................"}
+              )
+            </p>
+            <p className="text-[11px] text-slate-500">{schoolSettings.directorPosition}</p>
           </div>
         </div>
       </div>
