@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase/client";
+import { supabase, getSupabaseProjectRef } from "@/lib/supabase/client";
 import { useAuth } from "@/context/auth-context";
-import { AcademicYear, ACADEMIC_YEARS_PRESET } from "@/types/database";
+import { AcademicYear, ACADEMIC_YEARS_PRESET, Profile } from "@/types/database";
 import {
   SchoolSettings,
   DEFAULT_SCHOOL_SETTINGS,
@@ -26,6 +26,9 @@ import {
   Trash2,
   ArrowLeft,
   Star,
+  Users,
+  ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -33,8 +36,12 @@ export default function SettingsPage() {
 
   const [settings, setSettings] = useState<SchoolSettings>(DEFAULT_SCHOOL_SETTINGS);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [profilesList, setProfilesList] = useState<Profile[]>([]);
+  const [loadingProfiles, setLoadingProfiles] = useState(false);
   const [newYearBe, setNewYearBe] = useState("");
   const [newYearSemesterMode, setNewYearSemesterMode] = useState<SemesterMode>("all");
+
+  const projectRef = getSupabaseProjectRef() || "ajopmxrqwtjogwuxpmpo";
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -45,7 +52,49 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchSchoolSettings().then(setSettings);
     loadYears();
+    loadProfiles();
   }, [isConfigured]);
+
+  const loadProfiles = async () => {
+    if (!isConfigured) return;
+    setLoadingProfiles(true);
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("*, teacher:teachers(*)")
+        .order("created_at", { ascending: true });
+      if (data) {
+        setProfilesList(data as Profile[]);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingProfiles(false);
+    }
+  };
+
+  const handleToggleUserRole = async (targetProfile: Profile) => {
+    const nextRole = targetProfile.role === "admin" ? "teacher" : "admin";
+    setErrorMsg("");
+    setSuccessMsg("");
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ role: nextRole })
+        .eq("id", targetProfile.id);
+      if (error) throw error;
+      setProfilesList((prev) =>
+        prev.map((p) => (p.id === targetProfile.id ? { ...p, role: nextRole } : p))
+      );
+      setSuccessMsg(
+        `อัปเดตสิทธิ์ของ ${targetProfile.email || targetProfile.full_name} เป็น ${
+          nextRole === "admin" ? "ผู้ดูแลระบบ (Admin)" : "ครูผู้สอน"
+        } เรียบร้อยแล้ว`
+      );
+    } catch (err: any) {
+      setErrorMsg(err?.message || "ไม่สามารถเปลี่ยนสิทธิ์ได้");
+    }
+  };
 
   const loadYears = async () => {
     const presetYears = ACADEMIC_YEARS_PRESET.map((y) => ({
@@ -493,6 +542,124 @@ export default function SettingsPage() {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Section 3: Registered Login Accounts (Database Storage Viewer) */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-base font-bold text-navy-950 flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-600" />
+              <span>3. รายการบัญชีล็อกอินทั้งหมดในระบบ ({profilesList.length} บัญชี)</span>
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              ข้อมูลล็อกอินถูกจัดเก็บอย่างปลอดภัยใน <strong>Supabase Auth (`auth.users`)</strong> และตารางโปรไฟล์ <strong>`public.profiles`</strong>
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={loadProfiles}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingProfiles ? "animate-spin" : ""}`} />
+              <span>รีเฟรช</span>
+            </button>
+            <a
+              href={`https://supabase.com/dashboard/project/${projectRef}/auth/users`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-navy-900 hover:bg-navy-800 text-white rounded-xl text-xs font-semibold"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>เปิดตาราง Auth Users ใน Supabase</span>
+            </a>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto border border-slate-200 rounded-xl">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                <th className="py-2.5 px-3">อีเมลที่ใช้ล็อกอิน</th>
+                <th className="py-2.5 px-3">ชื่อ-นามสกุลในระบบ</th>
+                <th className="py-2.5 px-3">ผูกกับรายชื่อครู</th>
+                <th className="py-2.5 px-3 text-center">ระดับสิทธิ์</th>
+                <th className="py-2.5 px-3 text-right">การจัดการสิทธิ์</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {profilesList.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-6 text-center text-slate-400">
+                    {loadingProfiles
+                      ? "กำลังโหลดข้อมูลบัญชีล็อกอิน..."
+                      : "กรุณาเข้าสู่ระบบด้วยบัญชีผู้ดูแลระบบ (ผอ. หรือ ครูเอก) เพื่อดูรายการบัญชีทั้งหมด"}
+                  </td>
+                </tr>
+              ) : (
+                profilesList.map((p) => {
+                  const isDirector = p.email?.toLowerCase() === "22010022@chan1.go.th";
+                  const isKruAek = !isDirector && p.full_name?.includes("ครูเอก");
+
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50">
+                      <td className="py-2.5 px-3 font-semibold text-navy-950">
+                        {p.email || "-"}
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-700">
+                        {isDirector ? "นางสาวอำพร คงเจริญ" : p.full_name}
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-600">
+                        {isDirector ? (
+                          <span className="text-amber-700 font-semibold">
+                            ผู้อำนวยการสถานศึกษา
+                          </span>
+                        ) : isKruAek ? (
+                          <span className="text-cyan-700 font-semibold">
+                            ผู้ดูแลระบบหลังบ้าน (ไม่แสดงในตารางครู 9 คน)
+                          </span>
+                        ) : p.teacher?.name ? (
+                          <span>
+                            {p.teacher.name} ({p.teacher.grade_level})
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        {p.role === "admin" || isDirector ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold text-[11px]">
+                            <ShieldCheck className="w-3 h-3" />
+                            <span>ผู้ดูแลระบบ (Admin)</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold text-[11px]">
+                            <span>ครูผู้สอน</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        {!isDirector && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleUserRole(p)}
+                            className="px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-[11px] cursor-pointer"
+                          >
+                            {p.role === "admin"
+                              ? "ปรับเป็น ครูผู้สอน"
+                              : "เลื่อนเป็น ผู้ดูแลระบบ (Admin)"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
