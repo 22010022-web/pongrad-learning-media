@@ -733,21 +733,27 @@ export function SubmissionDetailModal({
                   </span>
                 </div>
 
-                {/* Download All Images Button */}
+                {/* Download All Images Button (Authenticated users only) */}
                 {images.length > 0 && (
-                  <button
-                    type="button"
-                    disabled={downloadingAll}
-                    onClick={handleDownloadAllImages}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs border border-blue-200 transition-colors cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>
-                      {downloadingAll
-                        ? "กำลังดาวน์โหลดภาพ..."
-                        : `ดาวน์โหลดภาพทั้งหมด (${images.length} รูป)`}
+                  user ? (
+                    <button
+                      type="button"
+                      disabled={downloadingAll}
+                      onClick={handleDownloadAllImages}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs border border-blue-200 transition-colors cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>
+                        {downloadingAll
+                          ? "กำลังดาวน์โหลดภาพ..."
+                          : `ดาวน์โหลดภาพทั้งหมด (${images.length} รูป)`}
+                      </span>
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 font-medium text-xs border border-slate-200">
+                      <span>🔒 โหมดดูอย่างเดียว (พิมพ์ PDF A4 ได้)</span>
                     </span>
-                  </button>
+                  )
                 )}
               </div>
 
@@ -762,17 +768,19 @@ export function SubmissionDetailModal({
                       onClick={() => setLightboxOpen(true)}
                     />
                     <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          currentImage &&
-                          downloadSingleImage(currentImage.image_url, selectedImageIdx)
-                        }
-                        className="bg-black/65 hover:bg-black/85 text-white px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 backdrop-blur-md transition-all cursor-pointer"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>ดาวน์โหลดรูปนี้</span>
-                      </button>
+                      {user && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            currentImage &&
+                            downloadSingleImage(currentImage.image_url, selectedImageIdx)
+                          }
+                          className="bg-black/65 hover:bg-black/85 text-white px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 backdrop-blur-md transition-all cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>ดาวน์โหลดรูปนี้</span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setLightboxOpen(true)}

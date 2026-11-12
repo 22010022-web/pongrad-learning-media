@@ -39,6 +39,8 @@ import {
   ArrowLeft,
   Wand2,
   RefreshCw,
+  Lock,
+  LogIn,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -415,6 +417,40 @@ export default function SubmitPage() {
       setUploadProgress("");
     }
   };
+
+  if (!user) {
+    return (
+      <div className="min-h-[calc(100vh-160px)] flex items-center justify-center py-12 px-4 bg-slate-50">
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center max-w-md w-full space-y-4 shadow-md">
+          <div className="w-14 h-14 rounded-2xl bg-navy-900 text-amber-400 flex items-center justify-center mx-auto shadow-sm">
+            <Lock className="w-7 h-7" />
+          </div>
+          <h2 className="text-lg font-bold text-navy-950">
+            กรุณาเข้าสู่ระบบก่อนส่งสื่อการสอน
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            ระบบส่งสื่อการจัดการเรียนรู้สงวนสิทธิ์เฉพาะครูและบุคลากรของ{" "}
+            <strong>{settings.schoolName}</strong> เท่านั้นเพื่อความปลอดภัยของข้อมูล
+          </p>
+          <div className="pt-2 space-y-2.5">
+            <Link
+              href="/login"
+              className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-navy-900 hover:bg-navy-800 text-white rounded-xl text-sm font-semibold shadow-sm transition-colors"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>เข้าสู่ระบบเพื่อส่งสื่อการสอน</span>
+            </Link>
+            <Link
+              href="/gallery"
+              className="inline-block w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
+            >
+              กลับไปดูคลังสื่อทั้งหมด (โหมดผู้เยี่ยมชม)
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto space-y-6">

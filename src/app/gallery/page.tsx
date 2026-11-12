@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 
 export default function GalleryPage() {
-  const { isConfigured } = useAuth();
+  const { user, isConfigured } = useAuth();
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -211,13 +211,27 @@ export default function GalleryPage() {
           </p>
         </div>
 
-        <Link
-          href="/submit"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-md transition-all self-start md:self-auto"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>ส่งสื่อการสอนใหม่</span>
-        </Link>
+        {user ? (
+          <Link
+            href="/submit"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-md transition-all self-start md:self-auto"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>ส่งสื่อการสอนใหม่</span>
+          </Link>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-200/80 text-slate-700 text-xs font-semibold">
+              <span>🔒 โหมดผู้เยี่ยมชม (ดูข้อมูลและพิมพ์ PDF ได้อย่างเดียว)</span>
+            </span>
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-navy-900 hover:bg-navy-800 text-white text-xs font-semibold rounded-xl shadow-sm transition-all"
+            >
+              <span>เข้าสู่ระบบเพื่อส่งสื่อ</span>
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Filter and Search Bar */}
@@ -470,7 +484,7 @@ export default function GalleryPage() {
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-semibold text-xs transition-colors cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        <span>ดู/แก้ไข</span>
+                        <span>{user ? "ดู/แก้ไข" : "ดูรายละเอียด"}</span>
                       </button>
                     </div>
                   </div>

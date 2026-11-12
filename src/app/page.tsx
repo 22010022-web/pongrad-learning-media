@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 
 export default function DashboardPage() {
-  const { isConfigured, isAdmin } = useAuth();
+  const { user, isConfigured, isAdmin } = useAuth();
 
   const [settings, setSettings] = useState<SchoolSettings>(DEFAULT_SCHOOL_SETTINGS);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -345,13 +345,22 @@ export default function DashboardPage() {
               </Link>
             )}
 
-            <Link
-              href="/submit"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold shadow-lg shadow-blue-600/30 transition-all hover:scale-[1.02]"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>ส่งสื่อการสอนใหม่</span>
-            </Link>
+            {user ? (
+              <Link
+                href="/submit"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold shadow-lg shadow-blue-600/30 transition-all hover:scale-[1.02]"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>ส่งสื่อการสอนใหม่</span>
+              </Link>
+            ) : (
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold shadow-lg shadow-blue-600/30 transition-all hover:scale-[1.02]"
+              >
+                <span>เข้าสู่ระบบเพื่อส่งสื่อ</span>
+              </Link>
+            )}
           </div>
         </div>
       </div>

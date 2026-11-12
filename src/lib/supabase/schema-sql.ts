@@ -286,4 +286,45 @@ CREATE POLICY "Authenticated users can upload submission images" ON storage.obje
 
 DROP POLICY IF EXISTS "Authenticated users can update/delete their submission images" ON storage.objects;
 CREATE POLICY "Authenticated users can update/delete their submission images" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'submission-images');
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
+CREATE OR REPLACE FUNCTION public.reset_teacher_password(
+  p_email TEXT,
+  p_teacher_id UUID,
+  p_new_password TEXT
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_user_id UUID;
+BEGIN
+  IF char_length(p_new_password) < 6 THEN
+    RAISE EXCEPTION 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร';
+  END IF;
+
+  SELECT u.id INTO v_user_id
+  FROM auth.users u
+  LEFT JOIN public.profiles p ON p.id = u.id
+  WHERE lower(u.email) = lower(trim(p_email))
+    AND (
+      p.teacher_id = p_teacher_id
+      OR (u.raw_user_meta_data->>'teacher_id') = p_teacher_id::text
+    )
+  LIMIT 1;
+
+  IF v_user_id IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  UPDATE auth.users
+  SET encrypted_password = extensions.crypt(p_new_password, extensions.gen_salt('bf')),
+      email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
+      updated_at = NOW()
+  WHERE id = v_user_id;
+
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.reset_teacher_password(TEXT, UUID, TEXT) TO anon, authenticated;
 `;

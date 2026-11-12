@@ -23,6 +23,7 @@ import {
   X,
   ShieldCheck,
   GraduationCap,
+  Eye,
 } from "lucide-react";
 
 export function Navbar() {
@@ -49,7 +50,7 @@ export function Navbar() {
 
   const navLinks = [
     { href: "/", label: "หน้าหลัก", icon: BookOpen, role: "all" },
-    { href: "/submit", label: "ส่งสื่อการสอน", icon: UploadCloud, role: "all" },
+    { href: "/submit", label: "ส่งสื่อการสอน", icon: UploadCloud, role: "auth" },
     { href: "/gallery", label: "คลังสื่อทั้งหมด", icon: LayoutGrid, role: "all" },
     { href: "/my-submissions", label: "ประวัติการส่งสื่อ", icon: History, role: "auth" },
     { href: "/reports", label: "รายงาน", icon: BarChart3, role: "admin" },
@@ -119,71 +120,58 @@ export function Navbar() {
             })}
           </nav>
 
-          {/* User Section (Desktop) */}
-          <div className="hidden lg:flex items-center space-x-3">
+          {/* User Profile & Auth Action */}
+          <div className="hidden lg:flex items-center space-x-3 shrink-0">
             {user ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center space-x-2.5 bg-navy-800/90 px-3 py-1.5 rounded-xl border border-navy-700">
                 <div className="text-right">
-                  <div className="text-sm font-semibold text-white flex items-center justify-end gap-1.5">
-                    {isAdmin && <ShieldCheck className="w-4 h-4 text-amber-400" />}
-                    <span>
+                  <div className="text-xs font-semibold text-white flex items-center justify-end gap-1">
+                    {isAdmin && <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />}
+                    <span className="max-w-[150px] truncate">
                       {isKruAekAdmin
                         ? "ครูเอก (System Admin)"
-                        : profile?.full_name || teacher?.name || user.email}
+                        : teacher?.name || profile?.full_name || user.email}
                     </span>
                   </div>
-                  <div className="text-xs text-navy-300">
-                    {isKruAekAdmin ? (
-                      <span className="text-cyan-300 font-medium">
-                        ผู้ดูแลระบบหลังบ้าน (ไม่เปิดเผยตัวตน)
-                      </span>
-                    ) : isAdmin ? (
-                      <span className="text-amber-300 font-medium">ผู้ดูแลระบบ (ผอ.)</span>
-                    ) : (
-                      <span>{teacher?.grade_level || "ครูผู้สอน"}</span>
-                    )}
+                  <div className="text-[10px] text-blue-300">
+                    {isKruAekAdmin
+                      ? "ผู้ดูแลระบบหลังบ้าน (ไม่เปิดเผยตัวตน)"
+                      : isAdmin
+                      ? "ผู้อำนวยการ (ผู้ดูแลระบบ)"
+                      : teacher?.grade_level || "ครูผู้สอน"}
                   </div>
                 </div>
                 <button
                   onClick={() => signOut()}
                   title="ออกจากระบบ"
-                  className="p-2 text-navy-300 hover:text-red-300 hover:bg-navy-800 rounded-lg transition-colors cursor-pointer"
+                  className="p-2 rounded-lg bg-navy-700 hover:bg-red-600/80 text-navy-200 hover:text-white transition-colors cursor-pointer"
                 >
-                  <LogOut className="w-5 h-5" />
+                  <LogOut className="w-4 h-4" />
                 </button>
               </div>
             ) : (
-              <Link
-                href="/login"
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg shadow-sm transition-colors"
-              >
-                <LogIn className="w-4 h-4" />
-                <span>เข้าสู่ระบบ</span>
-              </Link>
+              <div className="flex items-center gap-2">
+                <span className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-navy-800 border border-navy-700 text-[11px] text-navy-200">
+                  <Eye className="w-3.5 h-3.5 text-blue-400" />
+                  <span>โหมดดูอย่างเดียว</span>
+                </span>
+                <Link
+                  href="/login"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-medium text-sm shadow-md transition-all"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>เข้าสู่ระบบ</span>
+                </Link>
+              </div>
             )}
           </div>
 
-          {/* Mobile Hamburger Button */}
-          <div className="lg:hidden flex items-center gap-2 shrink-0 ml-2">
-            {user ? (
-              <button
-                onClick={() => signOut()}
-                title="ออกจากระบบ"
-                className="p-2 text-navy-300 hover:text-red-300 rounded-lg"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            ) : (
-              <Link
-                href="/login"
-                className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md whitespace-nowrap"
-              >
-                เข้าสู่ระบบ
-              </Link>
-            )}
+          {/* Mobile Menu Button */}
+          <div className="lg:hidden flex items-center">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg text-navy-200 hover:text-white hover:bg-navy-800"
+              className="p-2 rounded-lg text-navy-200 hover:text-white hover:bg-navy-800 focus:outline-none"
+              aria-label="เปิดเมนู"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -191,29 +179,9 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Menu Dropdown */}
+      {/* Mobile Dropdown Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-navy-800 bg-navy-950 px-4 pt-3 pb-5 space-y-1">
-          {user && (
-            <div className="px-3 py-2 mb-2 bg-navy-900 rounded-lg border border-navy-800">
-              <div className="text-sm font-semibold text-white flex items-center gap-1.5">
-                {isAdmin && <ShieldCheck className="w-4 h-4 text-amber-400" />}
-                <span>
-                  {isKruAekAdmin
-                    ? "ครูเอก (System Admin)"
-                    : profile?.full_name || teacher?.name || user.email}
-                </span>
-              </div>
-              <div className="text-xs text-navy-300">
-                {isKruAekAdmin
-                  ? "ผู้ดูแลระบบหลังบ้าน (ไม่เปิดเผยตัวตน)"
-                  : isAdmin
-                  ? "ผู้ดูแลระบบ (ผู้อำนวยการ)"
-                  : teacher?.grade_level || "ครูผู้สอน"}
-              </div>
-            </div>
-          )}
-
+        <div className="lg:hidden bg-navy-900 border-t border-navy-800 px-4 pt-3 pb-5 space-y-2">
           {filteredLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
@@ -222,10 +190,10 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${
                   isActive
                     ? "bg-blue-600 text-white"
-                    : "text-navy-200 hover:bg-navy-900 hover:text-white"
+                    : "text-navy-100 hover:bg-navy-800"
                 }`}
               >
                 <Icon className="w-5 h-5" />
@@ -233,6 +201,46 @@ export function Navbar() {
               </Link>
             );
           })}
+
+          <div className="pt-3 mt-3 border-t border-navy-800">
+            {user ? (
+              <div className="flex items-center justify-between px-3 py-2 bg-navy-800 rounded-xl">
+                <div>
+                  <div className="text-sm font-semibold text-white">
+                    {isKruAekAdmin
+                      ? "ครูเอก (System Admin)"
+                      : teacher?.name || profile?.full_name || user.email}
+                  </div>
+                  <div className="text-xs text-blue-300">
+                    {isKruAekAdmin
+                      ? "ผู้ดูแลระบบหลังบ้าน (ไม่เปิดเผยตัวตน)"
+                      : isAdmin
+                      ? "ผู้อำนวยการ"
+                      : teacher?.grade_level || "ครูผู้สอน"}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    signOut();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600/20 text-red-300 text-xs font-medium"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>ออกจากระบบ</span>
+                </button>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-blue-600 text-white font-medium text-sm"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>เข้าสู่ระบบ (สำหรับครูและผู้บริหาร)</span>
+              </Link>
+            )}
+          </div>
         </div>
       )}
     </header>
