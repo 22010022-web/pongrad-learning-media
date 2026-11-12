@@ -82,6 +82,7 @@ export default function LoginPage() {
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
   const [settings, setSettings] = useState<SchoolSettings>(DEFAULT_SCHOOL_SETTINGS);
 
+  const [registeredTeacherIds, setRegisteredTeacherIds] = useState<string[]>([]);
   const [teachersList, setTeachersList] = useState<Teacher[]>(
     TEACHERS_PRESET.map((t) => ({
       ...t,
@@ -111,7 +112,7 @@ export default function LoginPage() {
     }
   }, [user, router]);
 
-  // Load teachers for linking
+  // Load teachers for linking & check already registered teachers
   useEffect(() => {
     async function loadTeachers() {
       if (isConfigured) {
@@ -122,8 +123,18 @@ export default function LoginPage() {
           .order("display_order", { ascending: true });
         if (data && data.length > 0) {
           setTeachersList(data as Teacher[]);
-          return;
         }
+
+        // Fetch already registered teacher_ids
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("teacher_id")
+          .not("teacher_id", "is", null);
+        if (profiles) {
+          const ids = profiles.map((p) => p.teacher_id).filter(Boolean);
+          setRegisteredTeacherIds(ids as string[]);
+        }
+        return;
       }
       setTeachersList(
         TEACHERS_PRESET.map((t) => ({
@@ -198,6 +209,23 @@ export default function LoginPage() {
           setErrorMsg("กรุณาเลือกชื่อครูในระบบที่ตรงกับตัวท่าน");
           setLoading(false);
           return;
+        }
+
+        // Security check: Ensure this teacher has not been registered yet
+        if (isConfigured) {
+          const { data: existingProfile } = await supabase
+            .from("profiles")
+            .select("id, email")
+            .eq("teacher_id", selectedTeacherId)
+            .maybeSingle();
+
+          if (existingProfile) {
+            setErrorMsg(
+              "ชื่อครูท่านนี้มีผู้ลงทะเบียนใช้งานในระบบแล้ว หากเป็นบัญชีของท่านกรุณาใช้เมนู 'ลืมรหัสผ่าน?' เพื่อกู้คืนบัญชี หรือติดต่อผู้ดูแลระบบ"
+            );
+            setLoading(false);
+            return;
+          }
         }
 
         const matchedTeacher = teachersList.find((t) => t.id === selectedTeacherId);
@@ -536,20 +564,38 @@ export default function LoginPage() {
                     <optgroup label="กลุ่มที่ 1 ครูระดับปฐมวัย">
                       {teachersList
                         .filter((t) => t.category === "early_childhood")
-                        .map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name} ({t.grade_level})
-                          </option>
-                        ))}
+                        .map((t) => {
+                          const isAlreadyRegistered = registeredTeacherIds.includes(t.id);
+                          return (
+                            <option
+                              key={t.id}
+                              value={t.id}
+                              disabled={isAlreadyRegistered}
+                              className={isAlreadyRegistered ? "text-slate-400 bg-slate-100" : ""}
+                            >
+                              {t.name} ({t.grade_level})
+                              {isAlreadyRegistered ? " [ลงทะเบียนแล้ว]" : ""}
+                            </option>
+                          );
+                        })}
                     </optgroup>
                     <optgroup label="กลุ่มที่ 2 ครูระดับประถมศึกษา">
                       {teachersList
                         .filter((t) => t.category === "primary")
-                        .map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name} ({t.grade_level}) - {t.subjects}
-                          </option>
-                        ))}
+                        .map((t) => {
+                          const isAlreadyRegistered = registeredTeacherIds.includes(t.id);
+                          return (
+                            <option
+                              key={t.id}
+                              value={t.id}
+                              disabled={isAlreadyRegistered}
+                              className={isAlreadyRegistered ? "text-slate-400 bg-slate-100" : ""}
+                            >
+                              {t.name} ({t.grade_level}) - {t.subjects}
+                              {isAlreadyRegistered ? " [ลงทะเบียนแล้ว]" : ""}
+                            </option>
+                          );
+                        })}
                     </optgroup>
                   </select>
                 </div>
