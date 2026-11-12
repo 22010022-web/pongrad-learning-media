@@ -49,6 +49,10 @@ export default function MySubmissionsPage() {
       }
 
       setLoading(true);
+      const presetMonths = SUBMISSION_MONTHS_PRESET.map((m) => ({
+        ...m,
+        created_at: "",
+      }));
       try {
         if (isConfigured) {
           // Fetch months
@@ -56,7 +60,7 @@ export default function MySubmissionsPage() {
             .from("submission_months")
             .select("*")
             .order("display_order", { ascending: true });
-          if (mData) setMonths(mData as SubmissionMonth[]);
+          setMonths(mData && mData.length > 0 ? (mData as SubmissionMonth[]) : presetMonths);
 
           // Fetch teacher submissions
           let query = supabase
@@ -75,13 +79,7 @@ export default function MySubmissionsPage() {
           const { data: sData } = await query;
           if (sData) setSubmissions(sData as Submission[]);
         } else {
-          setMonths(
-            SUBMISSION_MONTHS_PRESET.map((m) => ({
-              ...m,
-              id: `m-${m.month_no}`,
-              created_at: "",
-            }))
-          );
+          setMonths(presetMonths);
         }
       } catch (err) {
         console.error("Error loading my submissions:", err);

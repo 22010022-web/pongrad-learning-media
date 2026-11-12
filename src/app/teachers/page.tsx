@@ -63,9 +63,8 @@ export default function TeachersManagementPage() {
         }
       }
       setTeachers(
-        TEACHERS_PRESET.map((t, idx) => ({
+        TEACHERS_PRESET.map((t) => ({
           ...t,
-          id: `preset-${idx + 1}`,
           created_at: new Date().toISOString(),
         }))
       );

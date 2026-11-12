@@ -12,6 +12,7 @@ import {
   Submission,
   TEACHERS_PRESET,
   SUBMISSION_MONTHS_PRESET,
+  ACADEMIC_YEARS_PRESET,
 } from "@/types/database";
 import { formatDateThai } from "@/lib/utils";
 import {
@@ -45,6 +46,10 @@ export default function ReportsPage() {
   useEffect(() => {
     async function loadData() {
       setLoading(true);
+      const presetTeachers = TEACHERS_PRESET.map((t) => ({ ...t, created_at: "" }));
+      const presetMonths = SUBMISSION_MONTHS_PRESET.map((m) => ({ ...m, created_at: "" }));
+      const presetYears = ACADEMIC_YEARS_PRESET.map((y) => ({ ...y, created_at: "" }));
+
       try {
         if (isConfigured) {
           const { data: tData } = await supabase
@@ -52,23 +57,22 @@ export default function ReportsPage() {
             .select("*")
             .eq("is_active", true)
             .order("display_order", { ascending: true });
-          if (tData) setTeachers(tData as Teacher[]);
+          setTeachers(tData && tData.length > 0 ? (tData as Teacher[]) : presetTeachers);
 
           const { data: yData } = await supabase
             .from("academic_years")
             .select("*")
             .order("year_be", { ascending: false });
-          if (yData && yData.length > 0) {
-            setAcademicYears(yData as AcademicYear[]);
-            const currentY = yData.find((y) => y.is_current) || yData[0];
-            setSelectedYearId(currentY.id);
-          }
+          const finalYears = yData && yData.length > 0 ? (yData as AcademicYear[]) : presetYears;
+          setAcademicYears(finalYears);
+          const currentY = finalYears.find((y) => y.is_current) || finalYears[0];
+          setSelectedYearId(currentY.id);
 
           const { data: mData } = await supabase
             .from("submission_months")
             .select("*")
             .order("display_order", { ascending: true });
-          if (mData) setMonths(mData as SubmissionMonth[]);
+          setMonths(mData && mData.length > 0 ? (mData as SubmissionMonth[]) : presetMonths);
 
           const { data: sData } = await supabase
             .from("submissions")
@@ -77,23 +81,10 @@ export default function ReportsPage() {
             );
           if (sData) setSubmissions(sData as Submission[]);
         } else {
-          setTeachers(
-            TEACHERS_PRESET.map((t, idx) => ({
-              ...t,
-              id: `teacher-${idx + 1}`,
-              created_at: "",
-            }))
-          );
-          setMonths(
-            SUBMISSION_MONTHS_PRESET.map((m) => ({
-              ...m,
-              id: `m-${m.month_no}`,
-              created_at: "",
-            }))
-          );
-          const fallbackY = { id: "y-2569", year_be: "2569", is_current: true, created_at: "" };
-          setAcademicYears([fallbackY]);
-          setSelectedYearId(fallbackY.id);
+          setTeachers(presetTeachers);
+          setMonths(presetMonths);
+          setAcademicYears(presetYears);
+          setSelectedYearId(presetYears[0].id);
         }
       } catch (err) {
         console.error("Error loading report data:", err);

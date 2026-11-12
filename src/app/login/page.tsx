@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
-import { supabase } from "@/lib/supabase/client";
+import { supabase, getSupabaseProjectRef } from "@/lib/supabase/client";
+import { SUPABASE_SCHEMA_SQL } from "@/lib/supabase/schema-sql";
 import { Teacher, TEACHERS_PRESET } from "@/types/database";
 import {
   GraduationCap,
@@ -15,11 +16,14 @@ import {
   AlertCircle,
   CheckCircle2,
   HelpCircle,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, signIn, signUp, isConfigured } = useAuth();
+  const { user, signIn, signUp, isConfigured, isSchemaReady } = useAuth();
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
@@ -28,10 +32,21 @@ export default function LoginPage() {
   const [role, setRole] = useState<"teacher" | "admin">("teacher");
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
 
-  const [teachersList, setTeachersList] = useState<Teacher[]>([]);
+  const [teachersList, setTeachersList] = useState<Teacher[]>(
+    TEACHERS_PRESET.map((t) => ({
+      ...t,
+      created_at: new Date().toISOString(),
+    }))
+  );
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [copiedSql, setCopiedSql] = useState(false);
+
+  const projectRef = getSupabaseProjectRef();
+  const sqlEditorUrl = projectRef
+    ? `https://supabase.com/dashboard/project/${projectRef}/sql/new`
+    : "https://supabase.com/dashboard";
 
   // Redirect if already logged in
   useEffect(() => {
@@ -54,17 +69,33 @@ export default function LoginPage() {
           return;
         }
       }
-      // Fallback preset
+      // Fallback preset with valid deterministic UUIDs
       setTeachersList(
-        TEACHERS_PRESET.map((t, idx) => ({
+        TEACHERS_PRESET.map((t) => ({
           ...t,
-          id: `preset-${idx + 1}`,
           created_at: new Date().toISOString(),
         }))
       );
     }
     loadTeachers();
-  }, [isConfigured]);
+  }, [isConfigured, isSchemaReady]);
+
+  const handleCopySql = async () => {
+    try {
+      await navigator.clipboard.writeText(SUPABASE_SCHEMA_SQL);
+      setCopiedSql(true);
+      setTimeout(() => setCopiedSql(false), 3000);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = SUPABASE_SCHEMA_SQL;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopiedSql(true);
+      setTimeout(() => setCopiedSql(false), 3000);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +110,7 @@ export default function LoginPage() {
           setErrorMsg(error.message || "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
         } else {
           setSuccessMsg("เข้าสู่ระบบสำเร็จ กำลังพาไปยังหน้าหลัก...");
-          setTimeout(() => router.push("/"), 800);
+          setTimeout(() => router.push("/"), 600);
         }
       } else {
         // Sign up
@@ -94,14 +125,24 @@ export default function LoginPage() {
           return;
         }
 
+        const matchedTeacher = teachersList.find((t) => t.id === selectedTeacherId);
         const teacherId = role === "teacher" ? selectedTeacherId : undefined;
-        const { error } = await signUp(email, password, fullName, role, teacherId);
+        const teacherName = role === "teacher" ? matchedTeacher?.name : undefined;
+
+        const { error } = await signUp(
+          email,
+          password,
+          fullName,
+          role,
+          teacherId,
+          teacherName
+        );
 
         if (error) {
           setErrorMsg(error.message || "เกิดข้อผิดพลาดในการลงทะเบียน");
         } else {
-          setSuccessMsg("ลงทะเบียนสำเร็จ! เข้าสู่ระบบเรียบร้อยแล้ว");
-          setTimeout(() => router.push("/"), 1200);
+          setSuccessMsg("ลงทะเบียนและเข้าสู่ระบบสำเร็จเรียบร้อยแล้ว!");
+          setTimeout(() => router.push("/"), 800);
         }
       }
     } catch (err: any) {
@@ -112,7 +153,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-160px)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-navy-900/5 to-slate-100">
+    <div className="min-h-[calc(100vh-160px)] flex items-center justify-center py-10 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-navy-900/5 to-slate-100">
       <div className="max-w-md w-full space-y-6">
         {/* Header */}
         <div className="text-center">
@@ -135,7 +176,7 @@ export default function LoginPage() {
               setMode("signin");
               setErrorMsg("");
             }}
-            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all cursor-pointer ${
               mode === "signin"
                 ? "bg-white text-navy-900 shadow-sm"
                 : "text-slate-600 hover:text-navy-900"
@@ -149,7 +190,7 @@ export default function LoginPage() {
               setMode("signup");
               setErrorMsg("");
             }}
-            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all cursor-pointer ${
               mode === "signup"
                 ? "bg-white text-navy-900 shadow-sm"
                 : "text-slate-600 hover:text-navy-900"
@@ -162,9 +203,32 @@ export default function LoginPage() {
         {/* Form Box */}
         <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-200/80">
           {errorMsg && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-start gap-2.5">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
-              <span>{errorMsg}</span>
+            <div className="mb-4 p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs sm:text-sm space-y-2.5">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
+                <span>{errorMsg}</span>
+              </div>
+              {(errorMsg.includes("SQL") || !isSchemaReady) && (
+                <div className="flex flex-wrap items-center gap-2 pt-1 pl-7">
+                  <button
+                    type="button"
+                    onClick={handleCopySql}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    {copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedSql ? "คัดลอก SQL แล้ว!" : "1. คัดลอกโค้ด SQL"}</span>
+                  </button>
+                  <a
+                    href={sqlEditorUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-navy-900 hover:bg-navy-800 text-white rounded-lg text-xs font-semibold transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>2. เปิด SQL Editor ({projectRef || "Supabase"})</span>
+                  </a>
+                </div>
+              )}
             </div>
           )}
 
@@ -178,24 +242,6 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && (
               <>
-                {/* Full name */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    ชื่อ - นามสกุล <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <UserIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                    <input
-                      type="text"
-                      required
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="เช่น ครูณิชนันทน์ การบุญ"
-                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                    />
-                  </div>
-                </div>
-
                 {/* Role select */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -205,7 +251,7 @@ export default function LoginPage() {
                     <button
                       type="button"
                       onClick={() => setRole("teacher")}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                      className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                         role === "teacher"
                           ? "bg-blue-50 border-blue-500 text-blue-700 shadow-sm"
                           : "border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -217,7 +263,7 @@ export default function LoginPage() {
                     <button
                       type="button"
                       onClick={() => setRole("admin")}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                      className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                         role === "admin"
                           ? "bg-navy-900 border-navy-900 text-white shadow-sm"
                           : "border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -239,9 +285,13 @@ export default function LoginPage() {
                       required
                       value={selectedTeacherId}
                       onChange={(e) => {
-                        setSelectedTeacherId(e.target.value);
-                        const matched = teachersList.find((t) => t.id === e.target.value);
-                        if (matched && !fullName) {
+                        const newId = e.target.value;
+                        setSelectedTeacherId(newId);
+                        const matched = teachersList.find((t) => t.id === newId);
+                        const isPreviousTeacherName = teachersList.some(
+                          (t) => t.name === fullName.trim()
+                        );
+                        if (matched && (!fullName.trim() || isPreviousTeacherName)) {
                           setFullName(matched.name);
                         }
                       }}
@@ -269,6 +319,24 @@ export default function LoginPage() {
                     </select>
                   </div>
                 )}
+
+                {/* Full name */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    ชื่อ - นามสกุล <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <UserIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder={role === "admin" ? "ชื่อ-นามสกุล ผู้อำนวยการ" : "เช่น ครูณิชนันทน์ การบุญ"}
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
               </>
             )}
 
@@ -314,13 +382,13 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 py-3 px-4 bg-navy-900 hover:bg-navy-800 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-lg shadow-navy-900/20 flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+              className="w-full mt-2 py-3 px-4 bg-navy-900 hover:bg-navy-800 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-lg shadow-navy-900/20 flex items-center justify-center gap-2 transition-all disabled:opacity-60 cursor-pointer"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>{mode === "signin" ? "เข้าสู่ระบบ" : "ลงทะเบียนและเข้าใช้งาน"}</span>
+                  <span>{mode === "signin" ? "เข้าสู่ระบบ" : "ลงทะเบียนและเข้าใช้งานทันที"}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -331,7 +399,7 @@ export default function LoginPage() {
           <div className="mt-6 pt-5 border-t border-slate-100 flex items-start gap-2 text-xs text-slate-500">
             <HelpCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
             <div>
-              สำหรับครูผู้สอน: กรุณาเลือกลงทะเบียนและผูกชื่อครูของตนเอง เพื่อให้ระบบสามารถบันทึกและแสดงประวัติการส่งสื่อได้อย่างถูกต้อง
+              สำหรับครูผู้สอน: เลือกชื่อของท่านจากรายการ ระบบจะผูกบัญชีเข้ากับตารางติดตามการส่งสื่อ 10 เดือนให้อัตโนมัติทันที
             </div>
           </div>
         </div>

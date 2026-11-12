@@ -45,18 +45,18 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
           {/* Logo & School Name */}
-          <Link href="/" className="flex items-center space-x-3 group">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-blue-500 to-navy-700 flex items-center justify-center shadow-lg border border-blue-400/30 group-hover:scale-105 transition-transform">
-              <GraduationCap className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+          <Link href="/" className="flex items-center space-x-2.5 sm:space-x-3 group min-w-0">
+            <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-blue-500 to-navy-700 flex items-center justify-center shadow-lg border border-blue-400/30 group-hover:scale-105 transition-transform shrink-0">
+              <GraduationCap className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
             </div>
-            <div>
-              <div className="font-bold text-base sm:text-lg text-white tracking-wide group-hover:text-blue-300 transition-colors">
+            <div className="min-w-0">
+              <div className="font-bold text-sm sm:text-lg text-white tracking-wide group-hover:text-blue-300 transition-colors truncate">
                 ระบบส่งสื่อการจัดการเรียนรู้
               </div>
-              <div className="text-xs text-navy-300 flex items-center gap-1.5">
-                <span>โรงเรียนวัดโป่งแรด (ปคุณวิทยาคาร)</span>
-                <span className="hidden md:inline-block w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-                <span className="hidden md:inline-block text-[11px] text-blue-300">สพป.จันทบุรี เขต 1</span>
+              <div className="text-[11px] sm:text-xs text-navy-300 flex items-center gap-1.5 truncate">
+                <span className="truncate">โรงเรียนวัดโป่งแรด (ปคุณวิทยาคาร)</span>
+                <span className="hidden md:inline-block w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"></span>
+                <span className="hidden md:inline-block text-[11px] text-blue-300 shrink-0">สพป.จันทบุรี เขต 1</span>
               </div>
             </div>
           </Link>
@@ -120,7 +120,7 @@ export function Navbar() {
           </div>
 
           {/* Mobile Hamburger Button */}
-          <div className="lg:hidden flex items-center gap-2">
+          <div className="lg:hidden flex items-center gap-2 shrink-0 ml-2">
             {user ? (
               <button
                 onClick={() => signOut()}
@@ -132,7 +132,7 @@ export function Navbar() {
             ) : (
               <Link
                 href="/login"
-                className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md"
+                className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md whitespace-nowrap"
               >
                 เข้าสู่ระบบ
               </Link>

@@ -11,6 +11,7 @@ import {
   Submission,
   TEACHERS_PRESET,
   SUBMISSION_MONTHS_PRESET,
+  ACADEMIC_YEARS_PRESET,
 } from "@/types/database";
 import { SubmissionDetailModal } from "@/components/submission-detail-modal";
 import {
@@ -81,9 +82,8 @@ export default function DashboardPage() {
             setTeachers(teachersData as Teacher[]);
           } else {
             setTeachers(
-              TEACHERS_PRESET.map((t, idx) => ({
+              TEACHERS_PRESET.map((t) => ({
                 ...t,
-                id: `teacher-${idx + 1}`,
                 created_at: new Date().toISOString(),
               }))
             );
@@ -93,9 +93,8 @@ export default function DashboardPage() {
             setMonths(monthsData as SubmissionMonth[]);
           } else {
             setMonths(
-              SUBMISSION_MONTHS_PRESET.map((m, idx) => ({
+              SUBMISSION_MONTHS_PRESET.map((m) => ({
                 ...m,
-                id: `month-${m.month_no}`,
                 created_at: new Date().toISOString(),
               }))
             );
@@ -108,9 +107,12 @@ export default function DashboardPage() {
             activeYearId = currentYear.id;
             setSelectedYearId(activeYearId);
           } else {
-            const fallbackYear = { id: "year-2569", year_be: "2569", is_current: true, created_at: "" };
-            setAcademicYears([fallbackYear]);
-            setSelectedYearId(fallbackYear.id);
+            const fallbackYears = ACADEMIC_YEARS_PRESET.map((y) => ({
+              ...y,
+              created_at: new Date().toISOString(),
+            }));
+            setAcademicYears(fallbackYears);
+            setSelectedYearId(fallbackYears[0].id);
           }
 
           // 4. Fetch Submissions
@@ -124,22 +126,23 @@ export default function DashboardPage() {
         } else {
           // Pre-populate presets for immediate demonstration
           setTeachers(
-            TEACHERS_PRESET.map((t, idx) => ({
+            TEACHERS_PRESET.map((t) => ({
               ...t,
-              id: `teacher-${idx + 1}`,
               created_at: new Date().toISOString(),
             }))
           );
           setMonths(
             SUBMISSION_MONTHS_PRESET.map((m) => ({
               ...m,
-              id: `month-${m.month_no}`,
               created_at: new Date().toISOString(),
             }))
           );
-          const fallbackYear = { id: "year-2569", year_be: "2569", is_current: true, created_at: "" };
-          setAcademicYears([fallbackYear]);
-          setSelectedYearId(fallbackYear.id);
+          const fallbackYears = ACADEMIC_YEARS_PRESET.map((y) => ({
+            ...y,
+            created_at: new Date().toISOString(),
+          }));
+          setAcademicYears(fallbackYears);
+          setSelectedYearId(fallbackYears[0].id);
         }
       } catch (err) {
         console.error("Error loading dashboard data:", err);

@@ -13,6 +13,7 @@ import {
   GRADE_LEVELS,
   TEACHERS_PRESET,
   SUBMISSION_MONTHS_PRESET,
+  ACADEMIC_YEARS_PRESET,
 } from "@/types/database";
 import {
   UploadCloud,
@@ -73,6 +74,20 @@ export default function SubmitPage() {
   // Load dropdown lists
   useEffect(() => {
     async function loadInitialData() {
+      const presetTeachers = TEACHERS_PRESET.map((t) => ({
+        ...t,
+        created_at: new Date().toISOString(),
+      }));
+      const presetYears = ACADEMIC_YEARS_PRESET.map((y) => ({
+        ...y,
+        created_at: new Date().toISOString(),
+      }));
+      const presetMonths = SUBMISSION_MONTHS_PRESET.map((m) => ({
+        ...m,
+        created_at: new Date().toISOString(),
+      }));
+      const curMonthNo = new Date().getMonth() + 1;
+
       if (isConfigured) {
         // Fetch teachers
         const { data: tData } = await supabase
@@ -80,51 +95,34 @@ export default function SubmitPage() {
           .select("*")
           .eq("is_active", true)
           .order("display_order", { ascending: true });
-        if (tData && tData.length > 0) setTeachersList(tData as Teacher[]);
+        setTeachersList(tData && tData.length > 0 ? (tData as Teacher[]) : presetTeachers);
 
         // Fetch academic years
         const { data: yData } = await supabase
           .from("academic_years")
           .select("*")
           .order("year_be", { ascending: false });
-        if (yData && yData.length > 0) {
-          setAcademicYears(yData as AcademicYear[]);
-          const currentY = yData.find((y) => y.is_current) || yData[0];
-          setAcademicYearId(currentY.id);
-        }
+        const finalYears = yData && yData.length > 0 ? (yData as AcademicYear[]) : presetYears;
+        setAcademicYears(finalYears);
+        const currentY = finalYears.find((y) => y.is_current) || finalYears[0];
+        setAcademicYearId(currentY.id);
 
         // Fetch submission months (10 months)
         const { data: mData } = await supabase
           .from("submission_months")
           .select("*")
           .order("display_order", { ascending: true });
-        if (mData && mData.length > 0) {
-          setMonths(mData as SubmissionMonth[]);
-          // Default to current month if in the list
-          const curMonthNo = new Date().getMonth() + 1;
-          const defaultMonth = mData.find((m) => m.month_no === curMonthNo) || mData[0];
-          setSubmissionMonthId(defaultMonth.id);
-        }
+        const finalMonths = mData && mData.length > 0 ? (mData as SubmissionMonth[]) : presetMonths;
+        setMonths(finalMonths);
+        const defaultMonth = finalMonths.find((m) => m.month_no === curMonthNo) || finalMonths[0];
+        setSubmissionMonthId(defaultMonth.id);
       } else {
-        // Fallbacks
-        const presetTeachers = TEACHERS_PRESET.map((t, idx) => ({
-          ...t,
-          id: `t-${idx + 1}`,
-          created_at: new Date().toISOString(),
-        }));
         setTeachersList(presetTeachers);
-
-        const fallbackYear = { id: "y-2569", year_be: "2569", is_current: true, created_at: "" };
-        setAcademicYears([fallbackYear]);
-        setAcademicYearId(fallbackYear.id);
-
-        const presetMonths = SUBMISSION_MONTHS_PRESET.map((m) => ({
-          ...m,
-          id: `m-${m.month_no}`,
-          created_at: new Date().toISOString(),
-        }));
+        setAcademicYears(presetYears);
+        setAcademicYearId(presetYears[0].id);
         setMonths(presetMonths);
-        setSubmissionMonthId(presetMonths[0].id);
+        const defaultMonth = presetMonths.find((m) => m.month_no === curMonthNo) || presetMonths[0];
+        setSubmissionMonthId(defaultMonth.id);
       }
     }
 
