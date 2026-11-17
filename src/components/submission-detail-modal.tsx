@@ -516,22 +516,45 @@ export function SubmissionDetailModal({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    ระดับชั้นที่นำสื่อไปใช้ *
-                  </label>
-                  <input
-                    type="text"
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      ระดับชั้นที่นำสื่อไปใช้ *
+                    </label>
+                    {localSubmission?.teacher?.grade_level && (
+                      <span className="text-[10px] text-slate-500">
+                        ชั้นประจำ: <span className="text-blue-700 font-medium">{localSubmission.teacher.grade_level}</span>
+                      </span>
+                    )}
+                  </div>
+                  <select
                     required
-                    list="edit-grade-list"
                     value={editGrade}
                     onChange={(e) => setEditGrade(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm"
-                  />
-                  <datalist id="edit-grade-list">
-                    {GRADE_LEVELS.map((g) => (
-                      <option key={g} value={g} />
-                    ))}
-                  </datalist>
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-medium"
+                  >
+                    <option value="">-- เลือกระดับชั้นที่นำสื่อไปใช้ --</option>
+                    {localSubmission?.teacher?.grade_level && (
+                      <optgroup label="⭐ ระดับชั้นประจำตัวครูผู้สอน">
+                        <option value={localSubmission.teacher.grade_level}>
+                          {localSubmission.teacher.grade_level} (ชั้นประจำ)
+                        </option>
+                      </optgroup>
+                    )}
+                    <optgroup label="ระดับปฐมวัย">
+                      <option value="ระดับปฐมวัย (อ.1 - อ.3)">ระดับปฐมวัย (อ.1 - อ.3 รวม)</option>
+                      <option value="อนุบาล 1">อนุบาล 1</option>
+                      <option value="อนุบาล 2">อนุบาล 2</option>
+                      <option value="อนุบาล 3">อนุบาล 3</option>
+                    </optgroup>
+                    <optgroup label="ระดับประถมศึกษา">
+                      <option value="ประถมศึกษาปีที่ 1 (ป.1)">ประถมศึกษาปีที่ 1 (ป.1)</option>
+                      <option value="ประถมศึกษาปีที่ 2 (ป.2)">ประถมศึกษาปีที่ 2 (ป.2)</option>
+                      <option value="ประถมศึกษาปีที่ 3 (ป.3)">ประถมศึกษาปีที่ 3 (ป.3)</option>
+                      <option value="ประถมศึกษาปีที่ 4 (ป.4)">ประถมศึกษาปีที่ 4 (ป.4)</option>
+                      <option value="ประถมศึกษาปีที่ 5 (ป.5)">ประถมศึกษาปีที่ 5 (ป.5)</option>
+                      <option value="ประถมศึกษาปีที่ 6 (ป.6)">ประถมศึกษาปีที่ 6 (ป.6)</option>
+                    </optgroup>
+                  </select>
                 </div>
 
                 <div>
