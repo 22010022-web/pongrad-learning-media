@@ -35,27 +35,28 @@ export async function exportSubmissionA4Pdf(
       : [];
 
   const imgCount = images.length;
-  // Dynamically adjust grid columns & image height so 1 to 10 images always fit on 1 A4 Portrait page
+  // Dynamically adjust grid columns & image height so 1 to 10 images fill the page nicely and clearly
   let gridCols = 2;
-  let imgHeightPx = 140;
+  let imgHeightPx = 145;
   if (imgCount === 1) {
     gridCols = 1;
-    imgHeightPx = 180;
+    imgHeightPx = 220;
   } else if (imgCount === 2) {
     gridCols = 2;
-    imgHeightPx = 155;
+    imgHeightPx = 180;
   } else if (imgCount <= 4) {
     gridCols = 2;
-    imgHeightPx = 110;
+    imgHeightPx = 140;
   } else if (imgCount <= 6) {
     gridCols = 3;
-    imgHeightPx = 100;
+    imgHeightPx = 130;
   } else if (imgCount <= 8) {
     gridCols = 4;
-    imgHeightPx = 92;
+    imgHeightPx = 120;
   } else {
+    // 9 - 10 images: 5 columns x 2 rows, enlarge image height so they are clear and fill empty bottom space
     gridCols = 5;
-    imgHeightPx = 84;
+    imgHeightPx = 115;
   }
 
   const teacherName = submission.teacher?.name || "ครูผู้สอน";
@@ -306,9 +307,9 @@ export async function exportSubmissionA4Pdf(
       font-size: 11.5px;
     }
     .footer-note {
-      margin-top: 28px;
+      margin-top: 14px;
       border-top: 1px dashed #cbd5e1;
-      padding-top: 10px;
+      padding-top: 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
