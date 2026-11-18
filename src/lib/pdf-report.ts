@@ -37,26 +37,26 @@ export async function exportSubmissionA4Pdf(
   const imgCount = images.length;
   // Dynamically adjust grid columns & image height so 1 to 10 images fill the page nicely and clearly
   let gridCols = 2;
-  let imgHeightPx = 145;
+  let imgHeightPx = 180;
   if (imgCount === 1) {
     gridCols = 1;
-    imgHeightPx = 220;
+    imgHeightPx = 320;
   } else if (imgCount === 2) {
     gridCols = 2;
-    imgHeightPx = 180;
+    imgHeightPx = 260;
   } else if (imgCount <= 4) {
     gridCols = 2;
-    imgHeightPx = 140;
+    imgHeightPx = 190;
   } else if (imgCount <= 6) {
     gridCols = 3;
-    imgHeightPx = 130;
+    imgHeightPx = 180;
   } else if (imgCount <= 8) {
     gridCols = 4;
-    imgHeightPx = 120;
+    imgHeightPx = 175;
   } else {
-    // 9 - 10 images: 5 columns x 2 rows, enlarge image height so they are clear and fill empty bottom space
+    // 9 - 10 images: 5 columns x 2 rows, set height to 175px to fill the page beautifully
     gridCols = 5;
-    imgHeightPx = 115;
+    imgHeightPx = 175;
   }
 
   const teacherName = submission.teacher?.name || "ครูผู้สอน";
