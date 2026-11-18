@@ -401,7 +401,7 @@ export function SubmissionDetailModal({
   const totalEditImages = keptImages.length + newImages.length;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-navy-950/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-6 animate-in fade-in duration-200">
+    <div className="fixed inset-0 !mt-0 top-0 left-0 right-0 bottom-0 z-[100] overflow-y-auto bg-navy-950/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-6 animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 my-4 flex flex-col max-h-[92vh]">
         {/* Modal Header */}
         <div className="bg-navy-900 text-white px-4 sm:px-6 py-4 flex items-center justify-between gap-3 shrink-0">
@@ -1006,7 +1006,7 @@ export function SubmissionDetailModal({
       {/* Lightbox Modal */}
       {lightboxOpen && currentImage && (
         <div
-          className="fixed inset-0 z-60 bg-black/95 flex items-center justify-center p-4 cursor-zoom-out"
+          className="fixed inset-0 !mt-0 top-0 left-0 right-0 bottom-0 z-[110] bg-black/95 flex items-center justify-center p-4 cursor-zoom-out"
           onClick={() => setLightboxOpen(false)}
         >
           <img
