@@ -473,7 +473,7 @@ export default function GalleryPage() {
                       <button
                         onClick={() => exportSubmissionA4Pdf(sub)}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold text-xs transition-colors cursor-pointer"
-                        title="พิมพ์รายงาน PDF A4 แนวนอน"
+                        title="พิมพ์รายงาน PDF ขนาด A4 (1 หน้าจบ)"
                       >
                         <FileText className="w-3.5 h-3.5" />
                         <span>PDF</span>

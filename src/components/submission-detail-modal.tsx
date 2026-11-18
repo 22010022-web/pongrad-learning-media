@@ -423,15 +423,15 @@ export function SubmissionDetailModal({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Button: Export A4 Landscape PDF */}
+            {/* Button: Export A4 PDF */}
             <button
               type="button"
               onClick={() => exportSubmissionA4Pdf(localSubmission)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-colors cursor-pointer"
-              title="พิมพ์หรือบันทึกเป็นไฟล์ PDF ขนาด A4 แนวนอน"
+              title="พิมพ์หรือบันทึกเป็นไฟล์ PDF ขนาด A4 (1 หน้าจบ)"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">รายงาน PDF (A4 แนวนอน)</span>
+              <span className="hidden sm:inline">รายงาน PDF (A4)</span>
               <span className="sm:hidden">PDF</span>
             </button>
 
@@ -945,7 +945,7 @@ export function SubmissionDetailModal({
                   className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-semibold text-xs shadow-sm transition-colors cursor-pointer"
                 >
                   <Printer className="w-4 h-4 text-blue-300" />
-                  <span>ส่งออกใบงานรายงานสื่อขนาด A4 แนวนอน (PDF)</span>
+                  <span>ส่งออกใบงานรายงานสื่อขนาด A4 (PDF)</span>
                 </button>
               </div>
             </>
