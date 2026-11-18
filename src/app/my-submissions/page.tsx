@@ -405,7 +405,7 @@ export default function MySubmissionsPage() {
                     <button
                       onClick={() => exportSubmissionA4Pdf(sub)}
                       className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                      title="ส่งออกรายงาน PDF ขนาด A4 แนวตั้ง"
+                      title="ส่งออกรายงาน PDF ขนาด A4 แนวนอน"
                     >
                       <FileText className="w-3.5 h-3.5" />
                       <span>รายงาน PDF (A4)</span>
