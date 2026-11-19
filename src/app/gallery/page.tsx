@@ -155,7 +155,12 @@ export default function GalleryPage() {
         selectedMediaType === "all" || sub.media_type === selectedMediaType;
 
       const matchGrade =
-        selectedGrade === "all" || sub.target_grade.includes(selectedGrade);
+        selectedGrade === "all" ||
+        sub.target_grade.includes(selectedGrade) ||
+        (selectedGrade === "อนุบาล" &&
+          (sub.target_grade.includes("ปฐมวัย") ||
+            sub.target_grade.includes("อนุบาล") ||
+            sub.target_grade.includes("อ.")));
 
       return (
         matchSearch &&
@@ -321,7 +326,7 @@ export default function GalleryPage() {
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 col-span-2 sm:col-span-1"
           >
             <option value="all">ทุกระดับชั้น</option>
-            <option value="อนุบาล">ระดับปฐมวัย (อ.1 - อ.3)</option>
+            <option value="อนุบาล">ระดับปฐมวัย (อ.1 - อ.3 / รวมชั้น)</option>
             <option value="ป.1">ชั้นประถมศึกษาปีที่ 1 (ป.1)</option>
             <option value="ป.2">ชั้นประถมศึกษาปีที่ 2 (ป.2)</option>
             <option value="ป.3">ชั้นประถมศึกษาปีที่ 3 (ป.3)</option>

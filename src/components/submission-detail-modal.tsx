@@ -541,10 +541,12 @@ export function SubmissionDetailModal({
                       </optgroup>
                     )}
                     <optgroup label="ระดับปฐมวัย">
-                      <option value="ระดับปฐมวัย (อ.1 - อ.3)">ระดับปฐมวัย (อ.1 - อ.3 รวม)</option>
+                      <option value="ระดับปฐมวัย (อ.1 - อ.2)">ระดับปฐมวัย (อ.1 - อ.2 รวมชั้น)</option>
+                      <option value="ระดับปฐมวัย (อ.3)">ระดับปฐมวัย (อ.3)</option>
                       <option value="อนุบาล 1">อนุบาล 1</option>
                       <option value="อนุบาล 2">อนุบาล 2</option>
                       <option value="อนุบาล 3">อนุบาล 3</option>
+                      <option value="ระดับปฐมวัย (อ.1 - อ.3)">ระดับปฐมวัย (อ.1 - อ.3 รวม)</option>
                     </optgroup>
                     <optgroup label="ระดับประถมศึกษา">
                       <option value="ประถมศึกษาปีที่ 1 (ป.1)">ประถมศึกษาปีที่ 1 (ป.1)</option>

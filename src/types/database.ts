@@ -91,9 +91,12 @@ export const MEDIA_TYPES = [
 ] as const;
 
 export const GRADE_LEVELS = [
+  'ระดับปฐมวัย (อ.1 - อ.2)',
+  'ระดับปฐมวัย (อ.3)',
   'อนุบาล 1',
   'อนุบาล 2',
   'อนุบาล 3',
+  'ระดับปฐมวัย (อ.1 - อ.3)',
   'ประถมศึกษาปีที่ 1 (ป.1)',
   'ประถมศึกษาปีที่ 2 (ป.2)',
   'ประถมศึกษาปีที่ 3 (ป.3)',
@@ -129,7 +132,7 @@ export const TEACHERS_PRESET: Omit<Teacher, 'created_at' | 'updated_at'>[] = [
     id: '00000000-0000-0000-0001-000000000001',
     name: 'ครูธารารัตน์ สามิภักดิ์',
     category: 'early_childhood',
-    grade_level: 'ระดับปฐมวัย (อ.1 - อ.3)',
+    grade_level: 'ระดับปฐมวัย (อ.1 - อ.2)',
     subjects: 'การจัดประสบการณ์การเรียนรู้ระดับปฐมวัย',
     is_active: true,
     display_order: 1,
@@ -138,7 +141,7 @@ export const TEACHERS_PRESET: Omit<Teacher, 'created_at' | 'updated_at'>[] = [
     id: '00000000-0000-0000-0001-000000000002',
     name: 'ครูนภาวรรณ สันดิษฐ์',
     category: 'early_childhood',
-    grade_level: 'ระดับปฐมวัย (อ.1 - อ.3)',
+    grade_level: 'ระดับปฐมวัย (อ.3)',
     subjects: 'การจัดประสบการณ์การเรียนรู้ระดับปฐมวัย',
     is_active: true,
     display_order: 2,

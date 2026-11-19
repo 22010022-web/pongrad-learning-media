@@ -456,7 +456,7 @@ export default function TeachersManagementPage() {
                   required
                   value={gradeLevel}
                   onChange={(e) => setGradeLevel(e.target.value)}
-                  placeholder="เช่น ประจำชั้น ป.1 หรือ ระดับปฐมวัย (อ.1 - อ.3)"
+                  placeholder="เช่น ประจำชั้น ป.1 หรือ ระดับปฐมวัย (อ.1 - อ.2)"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
