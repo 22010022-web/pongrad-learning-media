@@ -16,6 +16,14 @@ export async function exportSubmissionA4Pdf(
   submission: Submission,
   customSettings?: SchoolSettings
 ) {
+  // เปิดหน้าต่าง Pop-up ทันทีในบรรทัดแรกขณะที่ User Gesture กำลัง Active เพื่อป้องกันเบราว์เซอร์บล็อก Pop-up
+  const printWindow = window.open("", "_blank", "width=900,height=1100");
+  if (!printWindow) {
+    alert("กรุณาอนุญาตการเปิดหน้าต่าง Pop-up เพื่อพิมพ์หรือบันทึกไฟล์ PDF");
+    return;
+  }
+  printWindow.document.write("<!DOCTYPE html><html><head><title>กำลังเตรียมรายงาน PDF...</title></head><body style='font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; color: #334e68;'>กำลังจัดเตรียมเอกสาร PDF... กรุณารอสักครู่</body></html>");
+
   const settings = customSettings || (await fetchSchoolSettings());
 
   const images =
@@ -82,11 +90,6 @@ export async function exportSubmissionA4Pdf(
     settings.directorPosition?.trim() ||
     "ผู้อำนวยการโรงเรียนวัดโป่งแรด(ปคุณวิทยาคาร)";
 
-  const printWindow = window.open("", "_blank", "width=900,height=1100");
-  if (!printWindow) {
-    alert("กรุณาอนุญาตการเปิดหน้าต่าง Pop-up เพื่อพิมพ์หรือบันทึกไฟล์ PDF");
-    return;
-  }
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="th">
@@ -457,6 +460,14 @@ export interface SummaryReportPdfParams {
 }
 
 export async function exportSummaryReportA4Pdf(params: SummaryReportPdfParams) {
+  // เปิดหน้าต่าง Pop-up ทันทีในบรรทัดแรกขณะที่ User Gesture กำลัง Active เพื่อป้องกันเบราว์เซอร์บล็อก Pop-up
+  const printWindow = window.open("", "_blank", "width=900,height=1100");
+  if (!printWindow) {
+    alert("กรุณาอนุญาตการเปิดหน้าต่าง Pop-up เพื่อพิมพ์หรือบันทึกไฟล์ PDF");
+    return;
+  }
+  printWindow.document.write("<!DOCTYPE html><html><head><title>กำลังเตรียมรายงานสรุป PDF...</title></head><body style='font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; color: #334e68;'>กำลังจัดเตรียมเอกสารสรุป PDF... กรุณารอสักครู่</body></html>");
+
   const settings = params.schoolSettings || (await fetchSchoolSettings());
 
   const logoHtml = settings.logoUrl
@@ -469,11 +480,6 @@ export async function exportSummaryReportA4Pdf(params: SummaryReportPdfParams) {
     settings.directorPosition?.trim() ||
     "ผู้อำนวยการโรงเรียนวัดโป่งแรด(ปคุณวิทยาคาร)";
 
-  const printWindow = window.open("", "_blank", "width=900,height=1100");
-  if (!printWindow) {
-    alert("กรุณาอนุญาตการเปิดหน้าต่าง Pop-up เพื่อพิมพ์หรือบันทึกไฟล์ PDF");
-    return;
-  }
 
   // Calculate totals
   let totalSubmittedAllTeachers = 0;
