@@ -1,4 +1,4 @@
-import { Submission } from "@/types/database";
+import { Submission, Teacher, SubmissionMonth } from "@/types/database";
 import { SchoolSettings, fetchSchoolSettings, DEFAULT_SCHOOL_SETTINGS } from "@/lib/school-settings";
 import { formatDateThai } from "@/lib/utils";
 
@@ -435,6 +435,383 @@ export async function exportSubmissionA4Pdf(
       <div class="footer-note">
         <span>ระบบส่งสื่อการจัดการเรียนรู้ โรงเรียนวัดโป่งแรด (ปคุณวิทยาคาร)</span>
         <span>พัฒนาโดย ครูเอก · © 2026 Crafted with code & coffee by Kru Aek</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  printWindow.document.open();
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
+}
+
+export interface SummaryReportPdfParams {
+  schoolSettings?: SchoolSettings;
+  academicYearBe: string;
+  semesterLabel: string;
+  months: SubmissionMonth[];
+  teachers: Teacher[];
+  submissionMatrixMap: Map<string, Submission[]>;
+  totalMonthsInTerm: number;
+}
+
+export async function exportSummaryReportA4Pdf(params: SummaryReportPdfParams) {
+  const settings = params.schoolSettings || (await fetchSchoolSettings());
+
+  const logoHtml = settings.logoUrl
+    ? `<img src="${settings.logoUrl}" alt="School Logo" style="width: 52px; height: 52px; object-fit: contain; border-radius: 8px;" crossorigin="anonymous" />`
+    : `<div style="width: 48px; height: 48px; border-radius: 10px; background: #102a43; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;">ปร</div>`;
+
+  const directorName =
+    settings.directorName?.trim() || DEFAULT_SCHOOL_SETTINGS.directorName;
+  const directorPosition =
+    settings.directorPosition?.trim() ||
+    "ผู้อำนวยการโรงเรียนวัดโป่งแรด(ปคุณวิทยาคาร)";
+
+  const printWindow = window.open("", "_blank", "width=900,height=1100");
+  if (!printWindow) {
+    alert("กรุณาอนุญาตการเปิดหน้าต่าง Pop-up เพื่อพิมพ์หรือบันทึกไฟล์ PDF");
+    return;
+  }
+
+  // Calculate totals
+  let totalSubmittedAllTeachers = 0;
+  let completedTeachersCount = 0;
+
+  const teacherRowsHtml = params.teachers
+    .map((teacher, idx) => {
+      let teacherSubmittedMonths = 0;
+
+      const monthsCellsHtml = params.months
+        .map((m) => {
+          const key = `${teacher.id}_${m.id}`;
+          const subs = params.submissionMatrixMap.get(key) || [];
+          const hasSub = subs.length > 0;
+          if (hasSub) teacherSubmittedMonths += 1;
+
+          return `<td class="col-month">${
+            hasSub
+              ? '<span class="check-yes">✓</span>'
+              : '<span class="check-no">-</span>'
+          }</td>`;
+        })
+        .join("");
+
+      totalSubmittedAllTeachers += teacherSubmittedMonths;
+      const isCompleted = teacherSubmittedMonths >= params.totalMonthsInTerm;
+      if (isCompleted) completedTeachersCount += 1;
+
+      const percent = Math.round(
+        (teacherSubmittedMonths / params.totalMonthsInTerm) * 100
+      );
+
+      return `
+        <tr>
+          <td class="col-no">${idx + 1}</td>
+          <td class="col-name">${escapeHtml(teacher.name)}</td>
+          <td class="col-role">
+            <div style="font-weight: 500;">${escapeHtml(teacher.grade_level)}</div>
+            <div style="font-size: 10px; color: #64748b;">${escapeHtml(teacher.subjects)}</div>
+          </td>
+          ${monthsCellsHtml}
+          <td class="col-total">${teacherSubmittedMonths} / ${params.totalMonthsInTerm}</td>
+          <td class="col-percent" style="color: ${percent >= 100 ? '#15803d' : '#2563eb'};">${percent}%</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  const overallPercent =
+    params.teachers.length > 0
+      ? Math.round((completedTeachersCount / params.teachers.length) * 100)
+      : 0;
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>รายงานสรุปการส่งสื่อการจัดการเรียนรู้_${escapeHtml(params.semesterLabel)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm 10mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Sarabun', sans-serif;
+      color: #0f172a;
+      background: #e2e8f0;
+      font-size: 11.5px;
+      line-height: 1.35;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #102a43;
+      color: white;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    .toolbar-btn {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-family: 'Sarabun', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .toolbar-btn:hover {
+      background: #1d4ed8;
+    }
+    .toolbar-btn-close {
+      background: #334e68;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-family: 'Sarabun', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      margin-left: 8px;
+    }
+    .a4-page {
+      width: 210mm;
+      min-height: 296mm;
+      margin: 16px auto;
+      background: white;
+      padding: 10mm 12mm 8mm 12mm;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    @media print {
+      body {
+        background: white;
+      }
+      .toolbar {
+        display: none !important;
+      }
+      .a4-page {
+        width: 100%;
+        min-height: auto;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 2px solid #102a43;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+    }
+    .header-text h1 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #102a43;
+      line-height: 1.25;
+    }
+    .header-text p {
+      font-size: 11.5px;
+      color: #334e68;
+      font-weight: 500;
+    }
+    .criteria-box {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 5px;
+      padding: 5px 10px;
+      font-size: 11px;
+      color: #334155;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .report-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin-bottom: 8px;
+    }
+    .report-table th, .report-table td {
+      border: 1px solid #cbd5e1;
+      padding: 5px 6px;
+    }
+    .report-table th {
+      background: #102a43;
+      color: white;
+      font-weight: 600;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .report-table tbody tr:nth-child(even) {
+      background: #f8fafc;
+    }
+    .col-no { width: 30px; text-align: center; color: #64748b; font-weight: 500; }
+    .col-name { font-weight: 600; color: #0f172a; white-space: nowrap; width: 140px; }
+    .col-role { color: #334155; width: 135px; line-height: 1.25; }
+    .col-month { width: 38px; text-align: center; }
+    .col-total { width: 48px; text-align: center; font-weight: 700; color: #0f172a; }
+    .col-percent { width: 48px; text-align: center; font-weight: 700; }
+    .check-yes { color: #15803d; font-weight: 700; font-size: 12px; }
+    .check-no { color: #94a3b8; font-weight: 500; font-size: 12px; }
+    .table-summary-row {
+      background: #f1f5f9 !important;
+      font-weight: 700;
+    }
+    .table-summary-row td {
+      border-top: 2px solid #102a43;
+      padding: 6px 8px;
+    }
+    .signatures {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 14px;
+      padding-top: 8px;
+      font-size: 11.5px;
+    }
+    .sig-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .sig-space { height: 22px; }
+    .sig-grid {
+      display: inline-grid;
+      grid-template-columns: auto 180px auto;
+      column-gap: 4px;
+      row-gap: 3px;
+      align-items: baseline;
+    }
+    .sig-prefix { text-align: right; white-space: nowrap; }
+    .sig-dots { text-align: center; white-space: nowrap; overflow: hidden; letter-spacing: 0.5px; }
+    .sig-suffix { text-align: left; white-space: nowrap; }
+    .sig-center-cell { grid-column: 2; text-align: center; white-space: nowrap; }
+    .sig-pos { color: #334155; font-size: 11px; }
+    .footer-note {
+      margin-top: 12px;
+      border-top: 1px dashed #cbd5e1;
+      padding-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9.5px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div>
+      <strong>📄 ตัวอย่างรายงานสรุปการส่งสื่อขนาด A4 แนวตั้ง (PDF)</strong> — ${escapeHtml(params.semesterLabel)}
+    </div>
+    <div>
+      <button class="toolbar-btn" onclick="window.print()">🖨️ พิมพ์ / บันทึกเป็น PDF (A4 แนวตั้ง)</button>
+      <button class="toolbar-btn-close" onclick="window.close()">ปิดหน้าต่าง</button>
+    </div>
+  </div>
+
+  <div class="a4-page">
+    <div>
+      <div class="header">
+        ${logoHtml}
+        <div class="header-text">
+          <h1>แบบรายงานสรุปการส่งสื่อการจัดการเรียนรู้ของครูผู้สอน</h1>
+          <p>${escapeHtml(settings.schoolName)} • ${escapeHtml(settings.affiliation || settings.schoolArea)}</p>
+          <p>ประจำ${escapeHtml(params.semesterLabel)}</p>
+        </div>
+      </div>
+
+      <div class="criteria-box">
+        <span><strong>เกณฑ์การติดตาม:</strong> ครูทุกคนส่งผลงานสื่ออย่างน้อยเดือนละ 1 ชิ้น รวม ${params.totalMonthsInTerm} เดือน</span>
+        <span><strong>ผลการประเมินภาพรวม:</strong> ครูส่งครบ ${completedTeachersCount}/${params.teachers.length} ท่าน (${overallPercent}%)</span>
+      </div>
+
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th class="col-no">ที่</th>
+            <th class="col-name" style="text-align: left;">ชื่อ - สกุล</th>
+            <th class="col-role" style="text-align: left;">ระดับชั้น / หน้าที่</th>
+            ${params.months.map((m) => `<th class="col-month">${escapeHtml(m.short_name)}</th>`).join("")}
+            <th class="col-total">รวมส่ง</th>
+            <th class="col-percent">ร้อยละ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${teacherRowsHtml}
+        </tbody>
+        <tfoot>
+          <tr class="table-summary-row">
+            <td colspan="3" style="text-align: right; color: #102a43;">
+              สรุปรวมครูผู้สอนทั้งหมด ${params.teachers.length} ท่าน
+            </td>
+            ${params.months
+              .map((m) => {
+                let colSum = 0;
+                params.teachers.forEach((t) => {
+                  const key = `${t.id}_${m.id}`;
+                  if ((params.submissionMatrixMap.get(key) || []).length > 0) colSum += 1;
+                });
+                return `<td class="col-month" style="font-weight: 700; color: #102a43;">${colSum}</td>`;
+              })
+              .join("")}
+            <td class="col-total" style="color: #102a43;">${totalSubmittedAllTeachers}</td>
+            <td class="col-percent" style="color: #102a43;">${overallPercent}%</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div>
+      <div class="signatures">
+        <div class="sig-block">
+          <div class="sig-space"></div>
+          <div class="sig-grid">
+            <span class="sig-prefix">ลงชื่อ</span>
+            <span class="sig-dots">..................................................</span>
+            <span class="sig-suffix">ผู้รายงาน</span>
+            <div class="sig-center-cell">(..................................................)</div>
+            <div class="sig-center-cell sig-pos">ครูผู้รับผิดชอบงานสื่อการเรียนการสอน</div>
+          </div>
+        </div>
+        <div class="sig-block">
+          <div class="sig-space"></div>
+          <div class="sig-grid">
+            <span class="sig-prefix">ลงชื่อ</span>
+            <span class="sig-dots">..................................................</span>
+            <span class="sig-suffix">ผู้รับรอง</span>
+            <div class="sig-center-cell">(${escapeHtml(directorName)})</div>
+            <div class="sig-center-cell sig-pos">${escapeHtml(directorPosition)}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-note">
+        <span>ระบบส่งสื่อการจัดการเรียนรู้ โรงเรียนวัดโป่งแรด (ปคุณวิทยาคาร)</span>
+        <span>พิมพ์เมื่อ ${formatDateThai(new Date().toISOString())} • พัฒนาโดย ครูเอก</span>
       </div>
     </div>
   </div>

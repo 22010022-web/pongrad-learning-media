@@ -27,8 +27,10 @@ import {
   Printer,
   Calendar,
   FileSpreadsheet,
+  FileText,
   School,
 } from "lucide-react";
+import { exportSummaryReportA4Pdf } from "@/lib/pdf-report";
 
 export default function ReportsPage() {
   const { isConfigured } = useAuth();
@@ -188,12 +190,52 @@ export default function ReportsPage() {
     );
   };
 
+  const handleExportPdf = () => {
+    exportSummaryReportA4Pdf({
+      schoolSettings,
+      academicYearBe: activeYearBe,
+      semesterLabel: getSemesterLabel(activeSemesterMode, activeYearBe),
+      months,
+      teachers,
+      submissionMatrixMap,
+      totalMonthsInTerm,
+    });
+  };
+
   const handlePrint = () => {
-    window.print();
+    handleExportPdf();
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6 print:p-0 print:m-0 print:bg-white print:max-w-none">
+      {/* Inline Print Styles for A4 Portrait without edges */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 8mm 10mm;
+          }
+          html, body {
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          nav, header, footer, .no-print {
+            display: none !important;
+          }
+          .print-clean-container {
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            max-width: 100% !important;
+            background: white !important;
+          }
+        }
+      `}} />
+
       {/* Top Controls */}
       <div className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -227,28 +269,30 @@ export default function ReportsPage() {
             </select>
           </div>
 
+          {/* Export to PDF (A4 Portrait) */}
+          <button
+            onClick={handleExportPdf}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+            title="พิมพ์หรือบันทึกเป็นรายงาน PDF ขนาด A4 แนวตั้ง (1 หน้าจบ สะอาด ไม่มีขอบส่วนเกิน)"
+          >
+            <Printer className="w-4 h-4" />
+            <span>รายงาน PDF (A4 แนวตั้ง)</span>
+          </button>
+
           {/* Export to Excel */}
           <button
             onClick={handleExportExcel}
             className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+            title="ดาวน์โหลดไฟล์สรุปในรูปแบบ Excel (.xlsx)"
           >
             <FileSpreadsheet className="w-4 h-4" />
             <span>ดาวน์โหลด Excel</span>
-          </button>
-
-          {/* Print */}
-          <button
-            onClick={handlePrint}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-navy-900 hover:bg-navy-800 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            <span>พิมพ์รายงาน</span>
           </button>
         </div>
       </div>
 
       {/* Official Header for Print */}
-      <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm print:shadow-none print:border-none space-y-4">
+      <div className="print-clean-container bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm print:p-0 print:shadow-none print:border-none space-y-4">
         <div className="text-center space-y-1.5">
           {schoolSettings.logoUrl ? (
             <img
